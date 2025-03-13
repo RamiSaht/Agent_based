@@ -162,7 +162,7 @@ while running:
     t= round(t,2)    
        
     #Check conditions for termination
-    if t >= time_end or escape_pressed: 
+    if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): #Check if time is up or escape is pressed
         running = False
         pg.quit()
         print("Simulation Stopped")
