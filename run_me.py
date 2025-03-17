@@ -13,7 +13,7 @@ from visualization import map_initialization, map_running
 from Aircraft import Aircraft
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
-from cbs import run_CBS
+#from cbs import run_CBS
 
 #%% SET SIMULATION PARAMETERS
 #Input file names (used in import_layout) -> Do not change those unless you want to specify a new layout.
@@ -23,7 +23,6 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 #Parameters that can be changed:
 simulation_time = 10
 planner = "Independent" #choose which planner to use (currently only Independent is implemented)
-
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
@@ -149,7 +148,7 @@ if visualization:
 # =============================================================================
 # 1. While loop and visualization
 # =============================================================================
- 
+
 #Start of while loop    
 running=True
 escape_pressed = False
@@ -162,7 +161,7 @@ while running:
     t= round(t,2)    
        
     #Check conditions for termination
-    if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): #Check if time is up or escape is pressed
+    if t >= time_end or escape_pressed: 
         running = False
         pg.quit()
         print("Simulation Stopped")
@@ -193,7 +192,7 @@ while running:
     elif planner == "Prioritized":
         run_prioritized_planner()
     elif planner == "CBS":
-        run_CBS()
+        run_CBS(aircraft_lst, nodes_dict, edges_dict, heuristics, time_start=0)
     #elif planner == -> you may introduce other planners here
     else:
         raise Exception("Planner:", planner, "is not defined.")

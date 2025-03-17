@@ -82,8 +82,12 @@ class Aircraft(object):
         #Update position with rounded values
         x = xy_to[0]-xy_from[0]
         y = xy_to[1]-xy_from[1]
-        x_normalized = x / math.sqrt(x**2+y**2)
-        y_normalized = y / math.sqrt(x**2+y**2)
+        if x!=0 or y!=0:
+            x_normalized = x / math.sqrt(x**2+y**2)
+            y_normalized = y / math.sqrt(x**2+y**2)
+        else:
+            x_normalized = 0
+            y_normalized = 0
         posx = round(self.position[0] + x_normalized * distance_to_move ,2) #round to prevent errors
         posy = round(self.position[1] + y_normalized * distance_to_move ,2) #round to prevent errors
         self.position = (posx, posy)  
@@ -118,8 +122,9 @@ class Aircraft(object):
         if self.status == "taxiing":
             start_node = self.start #node from which planning should be done
             goal_node = self.goal #node to which planning should be done
-            
-            success, path = simple_single_agent_astar(nodes_dict, start_node, goal_node, heuristics, t)
+            # constrains=[]
+            constrains=[{'positive':False,'agent': 2,'loc': [(94),(32)],'timestep': 2},{'positive':False,'agent': 2,'loc': [(94),(32)],'timestep': 2}]
+            success, path = simple_single_agent_astar(nodes_dict, start_node, goal_node, heuristics, t,constrains,agent=self.id)
             if success:
                 self.path_to_goal = path[1:]
                 next_node_id = self.path_to_goal[0][0] #next node is first node in path_to_goal
@@ -128,7 +133,7 @@ class Aircraft(object):
             else:
                 raise Exception("No solution found for", self.id)
             
-            #Check the path
+            #Check the p
             if path[0][1] != t:
                 raise Exception("Something is wrong with the timing of the path planning")
 
