@@ -47,7 +47,66 @@ def heuristicFinder(graph, start_node, goal_node):
     return path, path_length
 
 
-def simple_single_agent_astar(nodes_dict, from_node, goal_node, heuristics, time_start):
+def build_constraint_table(constraints, agent):
+
+    positive = []  # to collect positive constraints
+    negative = []  # to collect negative constraints
+    max_timestep = -1  # the maximum timestep in these constraints
+    #  collect constraints that are related to this agent
+    for constraint in constraints:
+        if constraint['positive']:  # positive constraint is effective for everyone
+            if constraint['agent'] == agent:
+                positive.append(constraint)
+            else:
+                negative.append(constraint)
+            max_timestep = max(max_timestep, constraint['timestep'])
+        elif constraint['agent'] == agent:  # negative constraint is effective for only one agent
+            negative.append(constraint)
+            max_timestep = max(max_timestep, constraint['timestep'])
+
+    constraint_table = [[] for _ in range(max_timestep + 1)]
+    for constraint in positive:
+        if len(constraint['loc']) == 1:  # positive vertex constraint
+            constraint_table[constraint['timestep']].append({'loc': constraint['loc'], 'positive': True})
+        else:  # positive edge constraint
+            constraint_table[constraint['timestep'] - 1].append({'loc': [constraint['loc'][0]], 'positive': True})
+            constraint_table[constraint['timestep']].append({'loc': [constraint['loc'][1]], 'positive': True})
+
+    for constraint in negative:
+        if len(constraint['loc']) == 1:  # vertex constraint
+            constraint_table[constraint['timestep']].append({'loc': constraint['loc'], 'positive': False})
+        elif constraint['positive']:  # positive edge constraint for other agents
+            constraint_table[constraint['timestep'] - 1].append({'loc': [constraint['loc'][0]], 'positive': False})
+            constraint_table[constraint['timestep']].append({'loc': [constraint['loc'][1]], 'positive': False})
+            constraint_table[constraint['timestep']].append(
+                {'loc': [constraint['loc'][1], constraint['loc'][0]], 'positive': False})
+        else:  # negative edge constraint
+            constraint_table[constraint['timestep']].append({'loc': constraint['loc'], 'positive': False})
+
+    return constraint_table
+
+def is_constrained(curr_loc, next_loc, next_time, constraint_table):
+    """
+    Check if the given node is constrained for the agent at the current timestep.
+    """
+    if len(constraint_table) <= next_time:
+        return False
+
+    for constraint in constraint_table[next_time]:
+        if constraint['positive']:  # positive constraint
+            if constraint['loc'][0] != next_loc:
+                return True
+        else:  # negative constraint
+            if len(constraint['loc']) == 1:  # vertex constraint
+                if constraint['loc'][0] == next_loc:
+                    return True
+            else:  # edge constraint
+                if constraint['loc'] == [curr_loc, next_loc]:
+                    return True
+
+    return False
+
+def simple_single_agent_astar(nodes_dict, from_node, goal_node, heuristics, time_start, agent, constraints):
     # def a_star(my_map, start_loc, goal_loc, h_values, agent, constraints):
     """
     Single agent A* search. Time start can only be the time that an agent is at a node.
@@ -57,7 +116,8 @@ def simple_single_agent_astar(nodes_dict, from_node, goal_node, heuristics, time
         - goal_node = [int] node_id of node to which planning is done
         - heuristics = [dict] dict with shortest path distance between nodes. Dictionary in a dictionary. Key of first dict is fromnode and key in second dict is tonode.
         - time_start = [float] planning start time. 
-        - Hint: do you need more inputs?
+        - agent = [int] agent_id
+        - constraints = [dict] dictionary with constraints. 
     RETURNS:
         - success = True/False. True if path is found and False is no path is found
         - path = list of tuples with (loc, timestep) pairs -> example [(37, 1), (101, 2)]. Empty list if success == False.
