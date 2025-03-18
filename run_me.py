@@ -132,6 +132,18 @@ def create_graph(nodes_dict, edges_dict, plot_graph = True):
         
     return graph
 
+def parse_schedule(file_path, n_d):
+    df = pd.read_csv(file_path)
+    aircraft_lst = []
+    
+    for i, row in df.iterrows():
+        if row.t < 0:
+            raise Exception("Error: Schedule contains negative time values")
+        
+        aircraft_lst.append(Aircraft(row.ac_id, row["arrival_departure"], row.start_node, row.end_node, row.t, n_d))
+    
+    return aircraft_lst
+    
 #%% RUN SIMULATION
 # =============================================================================
 # 0. Initialization
@@ -140,7 +152,7 @@ nodes_dict, edges_dict, start_and_goal_locations = import_layout(nodes_file, edg
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
 
-aircraft_lst = []   #List which can contain aircraft agents
+aircraft_lst = parse_schedule("schedule.csv", nodes_dict)   #List which can contain aircraft agents
 
 if visualization:
     map_properties = map_initialization(nodes_dict, edges_dict) #visualization properties
@@ -178,17 +190,10 @@ while running:
         escape_pressed = map_running(map_properties, current_states, t, dt)
         timer.sleep(visualization_speed) 
       
-    #Spawn aircraft for this timestep (use for example a random process)
-    if t == 1:    
-        ac = Aircraft(1, 'A', 37,36,t, nodes_dict) #As an example we will create one aicraft arriving at node 37 with the goal of reaching node 36
-        ac1 = Aircraft(2, 'D', 36,37,t, nodes_dict)#As an example we will create one aicraft arriving at node 36 with the goal of reaching node 37
-        aircraft_lst.append(ac)
-        aircraft_lst.append(ac1)
         
     #Do planning 
     if planner == "Independent":     
-        if t == 1: #(Hint: Think about the condition that triggers (re)planning) 
-            run_independent_planner(aircraft_lst, nodes_dict, edges_dict, heuristics, t)
+        run_independent_planner(aircraft_lst, nodes_dict, edges_dict, heuristics, t)
     elif planner == "Prioritized":
         run_prioritized_planner()
     elif planner == "CBS":

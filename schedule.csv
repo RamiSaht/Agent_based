@@ -1,0 +1,4 @@
+ac_id,arrival_departure,start_node,end_node,t
+1,'A',37,36,1.0
+2,'D',36,37,1.0
+3,'D',30,37,6.0
