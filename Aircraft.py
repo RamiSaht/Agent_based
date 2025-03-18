@@ -129,7 +129,7 @@ class Aircraft(object):
                 self.path_to_goal = path[1:]
                 next_node_id = self.path_to_goal[0][0] #next node is first node in path_to_goal
                 self.from_to = [path[0][0], next_node_id]
-                print("Path AC", self.id, ":", path)
+                # print("Path AC", self.id, ":", path)
             else:
                 raise Exception("No solution found for", self.id)
             

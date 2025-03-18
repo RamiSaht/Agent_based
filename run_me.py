@@ -26,7 +26,7 @@ planner = "Independent" #choose which planner to use (currently only Independent
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.1 #set at 0.1 as default
+visualization_speed = 0.05 #set at 0.1 as default
 
 #%%Function definitions
 def import_layout(nodes_file, edges_file):
@@ -161,7 +161,7 @@ while running:
     t= round(t,2)    
        
     #Check conditions for termination
-    if t >= time_end or escape_pressed: 
+    if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
         running = False
         pg.quit()
         print("Simulation Stopped")
@@ -175,7 +175,7 @@ while running:
                 current_states[ac.id] = {"ac_id": ac.id,
                                          "xy_pos": ac.position,
                                          "heading": ac.heading}
-        escape_pressed = map_running(map_properties, current_states, t)
+        escape_pressed = map_running(map_properties, current_states, t, dt)
         timer.sleep(visualization_speed) 
       
     #Spawn aircraft for this timestep (use for example a random process)

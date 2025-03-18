@@ -223,9 +223,25 @@ def map_get_layout(scr, nodes_dict, edges_dict, min_x, max_y, reso, x_range, y_r
         plot_text(scr, thisString, black, 14, reso, wp_coordinate[0], wp_coordinate[1], min_x, max_y, x_range,
                   y_range, 10, 10)
 
+def predict_next_pos(pos, heading, dt):
+    next_pos = (None, None)
+    if heading == 0 or heading == 360:
+        next_pos = (round(pos[0], 2), round(pos[1] + dt, 2))
+    elif heading == 90:
+        next_pos = (round(pos[0] + dt, 2), round(pos[1], 2))
+    elif heading == 180:
+        next_pos = (round(pos[0], 2), round(pos[1] - dt, 2))
+    elif heading == 270:
+        next_pos = (round(pos[0] - dt, 2), round(pos[1], 2))
+    else:
+        raise Exception(f"Heading not accounted for: {heading}")
+        
+    return next_pos
+        
+
 #%% Update map during running
 
-def map_running(map_properties, current_states, t):  # function to update the map
+def map_running(map_properties, current_states, t, dt):  # function to update the map
     """
     Function updates Pygame map based on the map_properties, current state of the vehicles and the time.
     Collissions are detected if two aircraft are at the same xy_position. HINT: Is a collision the only conflict?    
@@ -275,13 +291,26 @@ def map_running(map_properties, current_states, t):  # function to update the ma
                       25)
 
     collision=False
+    print("Time:", time)
     for ac1 in current_states:
+        print(f'ID {current_states[ac1]["ac_id"]}: {current_states[ac1]["xy_pos"]}, next pos: {predict_next_pos(current_states[ac1]["xy_pos"], current_states[ac1]["heading"], dt)}')
         for ac2 in current_states:
             if ac1 != ac2 and current_states[ac1]["xy_pos"] == current_states[ac2]["xy_pos"]:
                 collision=True
                 print("COLLISION - between", current_states[ac1]["ac_id"], "and", current_states[ac2]["ac_id"], "at location", current_states[ac1]["xy_pos"], "time", time)
                 plot_text(scr, "COLLISION", purple, 16, reso, current_states[ac1]["xy_pos"][0], current_states[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
                       25)
+            # Detect edge collisions (aircrafts are moving towards each other)
+            next_pos_ac1 = predict_next_pos(current_states[ac1]["xy_pos"], current_states[ac1]["heading"], dt)
+            next_pos_ac2 = predict_next_pos(current_states[ac2]["xy_pos"], current_states[ac2]["heading"], dt)
+            if ac1 != ac2 and (next_pos_ac1 == current_states[ac2]["xy_pos"] and next_pos_ac2 == current_states[ac1]["xy_pos"]):
+                collision=True
+                print("COLLISION - between", current_states[ac1]["ac_id"], "and", current_states[ac2]["ac_id"], "at location", current_states[ac1]["xy_pos"], "time", time)
+                plot_text(scr, "COLLISION", green, 16, reso, current_states[ac1]["xy_pos"][0], current_states[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
+                      25)
+            
+            
+        
    
     pg.display.flip()  # Update the full display Surface to the screen
     pg.event.pump()  # internally process pygame event handlers
