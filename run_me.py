@@ -13,7 +13,7 @@ from visualization import map_initialization, map_running
 from Aircraft import Aircraft
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
-#from cbs import run_CBS
+from cbs import run_CBS
 
 #%% SET SIMULATION PARAMETERS
 #Input file names (used in import_layout) -> Do not change those unless you want to specify a new layout.
@@ -21,8 +21,8 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 10
-planner = "Independent" #choose which planner to use (currently only Independent is implemented)
+simulation_time = 30
+planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
@@ -135,15 +135,29 @@ def create_graph(nodes_dict, edges_dict, plot_graph = True):
 def parse_schedule(file_path, n_d):
     df = pd.read_csv(file_path)
     aircraft_lst = []
-    
+    # df.sort_values(by="t", inplace=True)
     for i, row in df.iterrows():
         if row.t < 0:
             raise Exception("Error: Schedule contains negative time values")
         
         aircraft_lst.append(Aircraft(row.ac_id, row["arrival_departure"], row.start_node, row.end_node, row.t, n_d))
-    
-    return aircraft_lst
-    
+    spawn_times = df.t.unique()
+    return aircraft_lst, spawn_times
+
+def find_closest_node(position, nodes_dict):
+    """
+    Find the closest node to a given (x, y) position.
+    """
+    min_distance = float('inf')
+    closest_node = None
+    for node_id, node_data in nodes_dict.items():
+        node_pos = node_data["xy_pos"]
+        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            closest_node = node_id
+    return closest_node
+
 #%% RUN SIMULATION
 # =============================================================================
 # 0. Initialization
@@ -152,7 +166,9 @@ nodes_dict, edges_dict, start_and_goal_locations = import_layout(nodes_file, edg
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
 
-aircraft_lst = parse_schedule("schedule.csv", nodes_dict)   #List which can contain aircraft agents
+aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)   #List which can contain aircraft agents
+print(f'aircraft_lst: {aircraft_lst}')
+print('spawn_times', spawn_times)
 
 if visualization:
     map_properties = map_initialization(nodes_dict, edges_dict) #visualization properties
@@ -197,7 +213,24 @@ while running:
     elif planner == "Prioritized":
         run_prioritized_planner()
     elif planner == "CBS":
-        run_CBS(aircraft_lst, nodes_dict, edges_dict, heuristics, time_start=0)
+        if t in spawn_times:
+            starts = []
+            goals = []
+            active_aircrafts = []
+            for ac in aircraft_lst:
+                if ac.status != "done":
+                    if ac.status == "taxiing":
+                        current_node = find_closest_node(ac.position, nodes_dict)
+                        starts.append(current_node)
+                        goals.append(ac.goal)
+                        active_aircrafts.append(ac)
+                    else:
+                        if t == ac.spawntime:
+                            starts.append(ac.start)
+                            goals.append(ac.goal)
+                            active_aircrafts.append(ac)
+                
+            run_CBS(graph, active_aircrafts, nodes_dict, edges_dict, heuristics, t, starts, goals)
     #elif planner == -> you may introduce other planners here
     else:
         raise Exception("Planner:", planner, "is not defined.")
