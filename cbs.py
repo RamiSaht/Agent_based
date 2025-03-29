@@ -4,7 +4,6 @@ from single_agent_planner import simple_single_agent_astar
 
 
 def detect_collision(path1, path2):
-    print("Start detection")
     t_1_start=path1[0][1]
     t_2_start=path2[0][1]
     t_1=path1[0][1]
@@ -25,7 +24,6 @@ def detect_collision(path1, path2):
                 t_2+=0.5
                 loc2=path2[n_2][0]
         if loc1 == loc2:
-            print(loc1)
             return {'a1': path1, 'a2': path2, 'loc': [loc1], 'timestep': t_1}
         if (((t_1-t_1_start) > 0) and ((t_2-t_2_start)>0)):
             prev_loc1 = path1[n_1-1][0]
@@ -39,7 +37,6 @@ def detect_collision(path1, path2):
         if ((n_1<len(path1))and(n_2<len(path2))):
             loc1 = path1[n_1][0]
             loc2 = path2[n_2][0]
-    print("I am out of while")
     return False
 
 
@@ -80,7 +77,6 @@ class CBSSolver:
         self.heuristics = heuristics
         self.time = t
     def push_node(self, node):
-        print("In push Here")
         heapq.heappush(self.open_list, (node['cost'], len(node['collisions']), self.num_of_generated, node))
         self.num_of_generated += 1
 

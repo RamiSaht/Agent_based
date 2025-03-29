@@ -23,6 +23,8 @@ disp_vehicles = True
 #Lines below are used in visualization, dont change them (line 26-46)
 piclist = []  # list to store all pics
 rectlist = []  # list to store the rectangular areas of the surface
+piclist_tugs = []  # list to store all pics of tugs
+rectlist_tugs = []  # list to store the rectangular areas of the surface of tugs
 squared_display = True  # create squared display
 boundary_margin = 0.01  # add boundary margin to be sure that points are within boundary
 screen_percentage = 0.94  # percentage of pixels used in the critical axis
@@ -53,9 +55,16 @@ def c2m_y(y_coord, max_y, reso_y, y_range, shift=0):  # function to convert y-co
 def plot_aircraft(scr, reso, deg, x, y, x0, y0, x_range, y_range, x_shift=0, y_shift=0):
     plane_map_x = c2m_x(x, x0, reso[0], x_range, x_shift)  # convert x-coordinates to map coordinates
     plane_map_y = c2m_y(y, y0, reso[1], y_range, y_shift)  # convert y-coordinates to map coordinates
-    rectlist[deg].centerx = plane_map_x  # set x-location of the aircraft image
-    rectlist[deg].centery = plane_map_y  # set y-location of the aircraft image
-    scr.blit(piclist[deg], rectlist[deg])  # blit the aircraft image to the screen
+    rectlist[deg//90].centerx = plane_map_x  # set x-location of the aircraft image
+    rectlist[deg//90].centery = plane_map_y  # set y-location of the aircraft image
+    scr.blit(piclist[deg//90], rectlist[deg//90])  # blit the aircraft image to the screen
+
+def plot_tug(scr, reso, deg, x, y, x0, y0, x_range, y_range, x_shift=0, y_shift=0):
+    tug_map_x = c2m_x(x, x0, reso[0], x_range, x_shift)  # convert x-coordinates to map coordinates
+    tug_map_y = c2m_y(y, y0, reso[1], y_range, y_shift)  # convert y-coordinates to map coordinates
+    rectlist_tugs[deg//90].centerx = tug_map_x  # set x-location of the tug image
+    rectlist_tugs[deg//90].centery = tug_map_y  # set y-location of the tug image
+    scr.blit(piclist_tugs[deg//90], rectlist_tugs[deg//90])  # blit the tug image to the screen
 
 def plot_line(scr, color_code, reso, radius, coord_1, coord_2, x0, y0, x_range, y_range, x_shift=0, y_shift=0):
     wp_map_x_1 = c2m_x(coord_1[0], x0, reso[0], x_range, x_shift)  # get x-pixel of source
@@ -105,18 +114,28 @@ def map_initialization(nodes_dict, edges_dict):  # function to initialise mapf
     scrrect = scr.get_rect()  # get rectangular area of the surface
     scr.fill(white)  # set background color
     plane_pic = pg.image.load(os.getcwd() + "\\blue-plane-hi.bmp")  # get the aircraft image
+    tug_pic = pg.image.load(os.getcwd() + "\\tug.jpg")  # get the tug image
+    
     plane_pic.set_colorkey(pg.Color(255, 255, 255))  # remove white background to make transparent
+    tug_pic.set_colorkey(pg.Color(255, 255, 255))  # remove white background to make transparent
 
-    for i in range(0, 360):  # transform aircraft image in every possible direction
-        piclist.append(pg.transform.rotozoom(plane_pic, i, (1. / 14.)))  # 1/14 is used for scaling the aircraft image
+    for i in range(0, 4):  # transform aircraft image in every possible direction
+        
+        piclist.append(pg.transform.rotozoom(plane_pic, i * 90, (1. / 14.)))  # 1/14 is used for scaling the aircraft image
         rectlist.append(piclist[i].get_rect())  # get rectangular surface of the pic
+        
+    for i in range(0, 4):  # transform tug image in every possible direction
+        piclist_tugs.append(pg.transform.rotozoom(tug_pic, i * 90, (1. / 14.)))  # 1/14 is used for scaling the aircraft image
+        rectlist_tugs.append(piclist_tugs[i].get_rect())  # get rectangular surface of the pic  
 
     map_properties['outer_reso'] = outer_reso  # store created information (resolution)
     map_properties['inner_reso'] = inner_reso  # resolution airport layout
     map_properties['scr'] = scr  # background
     map_properties['scrrect'] = scrrect  # surface of background
     map_properties['piclist'] = piclist  # aircraft data
+    map_properties['piclist_tugs'] = piclist_tugs  # tug data
     map_properties['rectlist'] = rectlist  # aircraft surface
+    map_properties['rectlist_tugs'] = rectlist_tugs  # tug surface
     map_properties['horizontal_sep'] = horizontal_sep  # margin around screen
 
     map_get_background(map_properties, nodes_dict, edges_dict)  # create the background layout
@@ -217,7 +236,10 @@ def map_get_layout(scr, nodes_dict, edges_dict, min_x, max_y, reso, x_range, y_r
     #Print waypoints and ids on map
     for node in nodes_dict:
         wp_coordinate = [nodes_dict[node]['x_pos'], nodes_dict[node]['y_pos']]
-        color = blue
+        if nodes_dict[node]['type'] == 'charging':
+            color = green
+        else:
+            color = blue
         plot_circle(scr, color, reso, 4, wp_coordinate, min_x, max_y, x_range, y_range)
         thisString = str(nodes_dict[node]['id'])  # create string with node ID
         plot_text(scr, thisString, black, 14, reso, wp_coordinate[0], wp_coordinate[1], min_x, max_y, x_range,
@@ -241,7 +263,7 @@ def predict_next_pos(pos, heading, dt):
 
 #%% Update map during running
 
-def map_running(map_properties, current_states, t, dt):  # function to update the map
+def map_running(map_properties, current_aircrafts, current_tugs, t, dt):  # function to update the map
     """
     Function updates Pygame map based on the map_properties, current state of the vehicles and the time.
     Collissions are detected if two aircraft are at the same xy_position. HINT: Is a collision the only conflict?    
@@ -255,7 +277,7 @@ def map_running(map_properties, current_states, t, dt):  # function to update th
         - Function updates pygame.
         - escape_pressed = boolean (True/False) = Used to end simulation loop if escape is pressed.
     """
-    
+    #%%
     reso = map_properties['inner_reso']  # get resolution
     scr = map_properties['scr']  # get screen
     scrrect = map_properties['scrrect']  # get screen surface
@@ -271,11 +293,17 @@ def map_running(map_properties, current_states, t, dt):  # function to update th
     
     #draw aircraft and aircraft id
     if disp_vehicles:
-        for aircraft in current_states.keys():
-            heading = int(current_states[aircraft]["heading"])
-            x_pos = current_states[aircraft]["xy_pos"][0]
-            y_pos = current_states[aircraft]["xy_pos"][1]
+        for aircraft in current_aircrafts.keys():
+            heading = int(current_aircrafts[aircraft]["heading"])
+            x_pos = current_aircrafts[aircraft]["xy_pos"][0]
+            y_pos = current_aircrafts[aircraft]["xy_pos"][1]
             plot_aircraft(scr, reso, heading, x_pos, y_pos, min_x, max_y, x_range, y_range)
+            
+        for tug in current_tugs.keys():
+            heading = int(current_tugs[tug]["heading"])
+            x_pos = current_tugs[tug]["xy_pos"][0]
+            y_pos = current_tugs[tug]["xy_pos"][1]
+            plot_tug(scr, reso, heading, x_pos, y_pos, min_x, max_y, x_range, y_range)
             
     if disp_time:
       plot_text(scr, "timestep", black, 30, reso, min_x + 0.90 * x_range, max_y - 0.03 * y_range, min_x, max_y,
@@ -284,29 +312,29 @@ def map_running(map_properties, current_states, t, dt):  # function to update th
       plot_text(scr, str(time).zfill(2), black, 25, reso, min_x + 0.90 * x_range, max_y - 0.06 * y_range, min_x, max_y, x_range, y_range)
 
     if disp_aircaft_id:  # if the aircraft id has to be displayed
-        for aircraft in current_states.keys():
-            id_string = 'ID: ' + str(current_states[aircraft]["ac_id"])  # create string with ID
+        for aircraft in current_aircrafts.keys():
+            id_string = 'ID: ' + str(current_aircrafts[aircraft]["ac_id"])  # create string with ID
             col = red
-            plot_text(scr, id_string, col, 14, reso, current_states[aircraft]["xy_pos"][0], current_states[aircraft]["xy_pos"][1], min_x, max_y, x_range, y_range, 0,
+            plot_text(scr, id_string, col, 14, reso, current_aircrafts[aircraft]["xy_pos"][0], current_aircrafts[aircraft]["xy_pos"][1], min_x, max_y, x_range, y_range, 0,
                       25)
 
     collision=False
-    print("Time:", time)
-    for ac1 in current_states:
-        print(f'ID {current_states[ac1]["ac_id"]}: {current_states[ac1]["xy_pos"]}, next pos: {predict_next_pos(current_states[ac1]["xy_pos"], current_states[ac1]["heading"], dt)}')
-        for ac2 in current_states:
-            if ac1 != ac2 and current_states[ac1]["xy_pos"] == current_states[ac2]["xy_pos"]:
+    # print("Time:", time)
+    for ac1 in current_aircrafts:
+        # print(f'ID {current_states[ac1]["ac_id"]}: {current_states[ac1]["xy_pos"]}, next pos: {predict_next_pos(current_states[ac1]["xy_pos"], current_states[ac1]["heading"], dt)}')
+        for ac2 in current_aircrafts:
+            if ac1 != ac2 and current_aircrafts[ac1]["xy_pos"] == current_aircrafts[ac2]["xy_pos"]:
                 collision=True
-                print("COLLISION - between", current_states[ac1]["ac_id"], "and", current_states[ac2]["ac_id"], "at location", current_states[ac1]["xy_pos"], "time", time)
-                plot_text(scr, "COLLISION", purple, 16, reso, current_states[ac1]["xy_pos"][0], current_states[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
+                print("COLLISION - between", current_aircrafts[ac1]["ac_id"], "and", current_aircrafts[ac2]["ac_id"], "at location", current_aircrafts[ac1]["xy_pos"], "time", time)
+                plot_text(scr, "COLLISION", purple, 16, reso, current_aircrafts[ac1]["xy_pos"][0], current_aircrafts[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
                       25)
             # Detect edge collisions (aircrafts are moving towards each other)
-            next_pos_ac1 = predict_next_pos(current_states[ac1]["xy_pos"], current_states[ac1]["heading"], dt)
-            next_pos_ac2 = predict_next_pos(current_states[ac2]["xy_pos"], current_states[ac2]["heading"], dt)
-            if ac1 != ac2 and (next_pos_ac1 == current_states[ac2]["xy_pos"] and next_pos_ac2 == current_states[ac1]["xy_pos"]):
+            next_pos_ac1 = predict_next_pos(current_aircrafts[ac1]["xy_pos"], current_aircrafts[ac1]["heading"], dt)
+            next_pos_ac2 = predict_next_pos(current_aircrafts[ac2]["xy_pos"], current_aircrafts[ac2]["heading"], dt)
+            if ac1 != ac2 and (next_pos_ac1 == current_aircrafts[ac2]["xy_pos"] and next_pos_ac2 == current_aircrafts[ac1]["xy_pos"]):
                 collision=True
-                print("COLLISION - between", current_states[ac1]["ac_id"], "and", current_states[ac2]["ac_id"], "at location", current_states[ac1]["xy_pos"], "time", time)
-                plot_text(scr, "COLLISION", green, 16, reso, current_states[ac1]["xy_pos"][0], current_states[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
+                print("COLLISION - between", current_aircrafts[ac1]["ac_id"], "and", current_aircrafts[ac2]["ac_id"], "at location", current_aircrafts[ac1]["xy_pos"], "time", time)
+                plot_text(scr, "COLLISION", green, 16, reso, current_aircrafts[ac1]["xy_pos"][0], current_aircrafts[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
                       25)
             
             

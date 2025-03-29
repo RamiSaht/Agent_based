@@ -14,6 +14,7 @@ from Aircraft import Aircraft
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
+from Tug import Tug
 
 #%% SET SIMULATION PARAMETERS
 #Input file names (used in import_layout) -> Do not change those unless you want to specify a new layout.
@@ -43,6 +44,7 @@ def import_layout(nodes_file, edges_file):
     gates_xy = []   #lst with (x,y) positions of gates
     rwy_dep_xy = [] #lst with (x,y) positions of entry points of departure runways
     rwy_arr_xy = [] #lst with (x,y) positions of exit points of arrival runways
+    charging_nodes = [] #lst with (x,y) positions of charging nodes
     
     df_nodes = pd.read_excel(os.getcwd() + "/" + nodes_file)
     df_edges = pd.read_excel(os.getcwd() + "/" + edges_file)
@@ -67,11 +69,14 @@ def import_layout(nodes_file, edges_file):
             rwy_arr_xy.append((row["x_pos"],row["y_pos"]))
         elif row["type"] == "gate":
             gates_xy.append((row["x_pos"],row["y_pos"]))
+        elif row["type"] == "charging":
+            charging_nodes.append((row["x_pos"],row["y_pos"]))
 
     #Specify node ids of gates, departure runways and arrival runways in a dict
     start_and_goal_locations = {"gates": gates_xy, 
                                 "dep_rwy": rwy_dep_xy,
-                                "arr_rwy": rwy_arr_xy}
+                                "arr_rwy": rwy_arr_xy,
+                                "charging_nodes": charging_nodes}
     
     #Create edges_dict from df_edges
     edges_dict = {}
@@ -132,7 +137,7 @@ def create_graph(nodes_dict, edges_dict, plot_graph = True):
         
     return graph
 
-def parse_schedule(file_path, n_d):
+def parse_schedule(file_path, nodes_dict):
     df = pd.read_csv(file_path)
     aircraft_lst = []
     # df.sort_values(by="t", inplace=True)
@@ -140,7 +145,7 @@ def parse_schedule(file_path, n_d):
         if row.t < 0:
             raise Exception("Error: Schedule contains negative time values")
         
-        aircraft_lst.append(Aircraft(row.ac_id, row["arrival_departure"], row.start_node, row.end_node, row.t, n_d))
+        aircraft_lst.append(Aircraft(row.ac_id, row["arrival_departure"], row.start_node, row.end_node, row.t, nodes_dict))
     spawn_times = df.t.unique()
     return aircraft_lst, spawn_times
 
@@ -158,6 +163,17 @@ def find_closest_node(position, nodes_dict):
             closest_node = node_id
     return closest_node
 
+def parse_tugs(file_path, nodes_dict):
+    
+    df = pd.read_csv(file_path)
+    lst = []
+    
+    for i, row in df.iterrows():
+        if row.starting_node not in nodes_dict.keys():
+            raise Exception("Error: Start node of tug does not exist in nodes_dict")
+        lst.append(Tug(row.tug_id, row.starting_node, row.starting_energy, nodes_dict))
+    
+    return lst
 #%% RUN SIMULATION
 # =============================================================================
 # 0. Initialization
@@ -165,9 +181,10 @@ def find_closest_node(position, nodes_dict):
 nodes_dict, edges_dict, start_and_goal_locations = import_layout(nodes_file, edges_file)
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
-
 aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)   #List which can contain aircraft agents
+tugs_lst = parse_tugs("tugs.csv", nodes_dict) #List which can contain tug agents
 print(f'aircraft_lst: {aircraft_lst}')
+print(f'tugs_lst: {[tug.id for tug in tugs_lst]}')
 print('spawn_times', spawn_times)
 
 if visualization:
@@ -197,13 +214,19 @@ while running:
     
     #Visualization: Update map if visualization is true
     if visualization:
-        current_states = {} #Collect current states of all aircraft
+        current_aircrafts = {} #Collect current states of all aircraft
         for ac in aircraft_lst:
             if ac.status == "taxiing":
-                current_states[ac.id] = {"ac_id": ac.id,
+                current_aircrafts[ac.id] = {"ac_id": ac.id,
                                          "xy_pos": ac.position,
                                          "heading": ac.heading}
-        escape_pressed = map_running(map_properties, current_states, t, dt)
+        
+        current_tugs = {} #Collect current states of all tugs
+        for tug in tugs_lst:
+            current_tugs[tug.id] = {"tug_id": tug.id,
+                                         "xy_pos": tug.position,
+                                         "heading": tug.heading}
+        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt)
         timer.sleep(visualization_speed) 
       
         
