@@ -3,6 +3,7 @@ Run-me.py is the main file of the simulation. Run this file to run the simulatio
 """
 
 import os
+from matplotlib.style import available
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -22,7 +23,7 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 30
+simulation_time = 10
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
@@ -184,7 +185,7 @@ heuristics = calc_heuristics(graph, nodes_dict)
 aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)   #List which can contain aircraft agents
 tugs_lst = parse_tugs("tugs.csv", nodes_dict) #List which can contain tug agents
 print(f'aircraft_lst: {aircraft_lst}')
-print(f'tugs_lst: {[tug.id for tug in tugs_lst]}')
+print(f'tugs_lst: {[tug for tug in tugs_lst]}')
 print('spawn_times', spawn_times)
 
 if visualization:
@@ -200,12 +201,13 @@ escape_pressed = False
 time_end = simulation_time
 dt = 0.1 #should be factor of 0.5 (0.5/dt should be integer)
 t= 0
-
+aircraft_queue = [] #queue of aircraft that are waiting for a tug
+available_tugs = [] #list of available tugs
 print("Simulation Started")
 while running:
     t= round(t,2)    
        
-    #Check conditions for termination
+    #quit
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
         running = False
         pg.quit()
@@ -216,10 +218,9 @@ while running:
     if visualization:
         current_aircrafts = {} #Collect current states of all aircraft
         for ac in aircraft_lst:
-            if ac.status == "taxiing":
-                current_aircrafts[ac.id] = {"ac_id": ac.id,
-                                         "xy_pos": ac.position,
-                                         "heading": ac.heading}
+            current_aircrafts[ac.id] = {"ac_id": ac.id,
+                                        "xy_pos": ac.position,
+                                        "heading": ac.heading}
         
         current_tugs = {} #Collect current states of all tugs
         for tug in tugs_lst:
@@ -236,33 +237,29 @@ while running:
     elif planner == "Prioritized":
         run_prioritized_planner()
     elif planner == "CBS":
-        if t in spawn_times:
-            starts = []
-            goals = []
-            active_aircrafts = []
-            for ac in aircraft_lst:
-                if ac.status != "done":
-                    if ac.status == "taxiing":
-                        current_node = find_closest_node(ac.position, nodes_dict)
-                        starts.append(current_node)
-                        goals.append(ac.goal)
-                        active_aircrafts.append(ac)
-                    else:
-                        if t == ac.spawntime:
-                            starts.append(ac.start)
-                            goals.append(ac.goal)
-                            active_aircrafts.append(ac)
+        # get available tugs
+        available_tugs = [tug for tug in tugs_lst if tug.status == "ready"]
+        
+        # get aircraft that are waiting for a tug
+        aircraft_queue = [ac for ac in aircraft_lst if ac.status == "waiting"]
+        while aircraft_queue and available_tugs:
+            ac = aircraft_queue.pop(0)
+            tug = available_tugs.pop(0)
+            ac.assign_tug(tug)
+            tug.assign_ac(ac)
+            print(f"Assigned tug {tug} to ac \n{ac}")
+        
+        
+        for tug in tugs_lst:
+            if tug.status == "assigned":
+                if tug.goal is None:  # Ensure goal is set
+                    tug.goal = tug.assigned_ac.start  # Set goal to the aircraft's start node
+                tug.plan_free_path(heuristics, t)  # Plan free path for tug
+        
+        for tug in tugs_lst:
+            if tug.status == "moving_free":
+                tug.move(dt, t) #move tug
                 
-            run_CBS(graph, active_aircrafts, nodes_dict, edges_dict, heuristics, t, starts, goals)
-    #elif planner == -> you may introduce other planners here
-    else:
-        raise Exception("Planner:", planner, "is not defined.")
-                       
-    #Move the aircraft that are taxiing
-    for ac in aircraft_lst: 
-        if ac.status == "taxiing": 
-            ac.move(dt, t)
-                           
     t = t + dt
           
 # =============================================================================

@@ -17,22 +17,22 @@ class Aircraft(object):
         """
         
         #Fixed parameters
-        self.speed = 1         #how much a/c moves per unit of t
         self.id = flight_id       #flight_id
         self.type = a_d           #arrival or departure (A/D)
         self.spawntime = spawn_time #spawntime
         self.start = start_node   #start_node_id
         self.goal = goal_node     #goal_node_id
-        self.nodes_dict = nodes_dict #keep copy of nodes dict
+        # self.nodes_dict = nodes_dict #keep copy of nodes dict
         
         #Route related
-        self.status = None 
+        self.status = 'waiting' # waiting, requested, attached, done
         self.path_to_goal = [] #planned path left from current location
         self.from_to = [0,0]
+        self.assigned_tug = None #tug to which the aircraft is attached
 
         #State related
         self.heading = 0
-        self.position = (0,0) #xy position on map
+        self.position = nodes_dict[start_node]["xy_pos"] #xy position on map
 
     def get_heading(self, xy_start, xy_next):
         """
@@ -110,4 +110,35 @@ class Aircraft(object):
                 
                 self.from_to = [new_from_id, new_next_id] #update new from and to node
 
-    
+    def acknowledge_attach(self, tug_id):
+        """
+        Attaches the aircraft to a tug.
+        INPUT:
+            - tug_id: id of the tug to which the aircraft is attached
+        """
+        if self.status == "requested" and tug_id == self.assigned_tug.id:
+            self.status = 'attached'
+            
+    def move_with_tug(self):
+        """
+        Moves the aircraft with the tug.
+        """
+        if self.assigned_tug != None and self.status == "attached":
+            self.position = self.assigned_tug.position #move with the tug
+            self.heading = self.assigned_tug.heading #move with the tug
+        else:
+            raise Exception(f"Moving Aircraft {self.id} which is not attached to a tug or no tug assigned.")
+            
+    def assign_tug(self, tug):
+        """
+        Assigns a tug to the aircraft.
+        INPUT:
+            - tug_id: id of the tug to which the aircraft is assigned
+        """
+        if self.status == "waiting":
+            self.assigned_tug = tug
+            self.status = 'requested'
+            
+            
+    def __str__(self):
+        return f"Aircraft {self.id} ({self.type}) at {self.position} with heading {self.heading} and status {self.status}"
