@@ -83,7 +83,6 @@ class Aircraft(object):
         """
         if self.status == "requested" and tug_id == self.assigned_tug.id:
             self.status = 'attached'
-            print(f"Aircraft {self.id} is now attached to Tug {tug_id}.")
             
     def move_with_tug(self):
         """
@@ -113,7 +112,6 @@ class Aircraft(object):
             self.assigned_tug.detach_ac(self.id)
             self.assigned_tug = None
             self.status = 'done'
-            print(f"Aircraft {self.id} is now detached from its Tug.")
              
     def __str__(self):
         return f"Aircraft {self.id} ({self.type}) at {self.position} with heading {self.heading} and status {self.status}"

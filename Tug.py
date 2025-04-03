@@ -65,7 +65,6 @@ class Tug(object):
         
     def move(self, dt, t):   
         # Determine nodes between which the tug is moving
-        # print(f'tug {self.id} moving according to path {self.path_to_goal}')
         from_node = self.from_to[0]
         to_node = self.from_to[1]
         xy_from = self.nodes_dict[from_node]["xy_pos"]  # xy position of from node
@@ -89,7 +88,6 @@ class Tug(object):
         # Check if goal is reached or if to_node is reached
         if self.position == xy_to:  # If the tug has reached the `to_node`
             if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # If the final goal is reached
-                print(f"Tug {self.id} reached its goal at {self.position}")
                 if self.position == self.assigned_ac.position:
                     self.status = "moving_tugging"
                     self.attach_to_ac()
@@ -126,7 +124,6 @@ class Tug(object):
             self.attached_ac = self.assigned_ac
             self.path_to_goal = []  # Clear the path to goal
             self.status = "moving_tugging"
-            print(f"Tug {self.id} attached to aircraft {self.assigned_ac.id}")
         else:
             raise Exception(f"Tug {self.id} cannot attach to aircraft {self.assigned_ac.id} as it is already attached to another aircraft. Current situation: assigned to {self.assigned_ac} and attached to {self.attached_ac}")
      
@@ -138,7 +135,6 @@ class Tug(object):
         if success:
             self.path_to_goal = path
             self.from_to = [self.from_to[0], path[1][0]]
-            print(f'tug {self.id} planned free path to goal {self.goal} with path {self.path_to_goal}')
             self.status = "moving_free"
         else:
             raise Exception(f"Tug {self.id} could not find a free path to goal {self.goal}")
@@ -151,7 +147,6 @@ class Tug(object):
         if success:
             self.path_to_goal = path
             self.from_to = [self.from_to[0], path[1][0]]
-            print(f'tug {self.id} planned tugging path to goal {self.assigned_ac.goal} with path {self.path_to_goal}')
             self.status = "moving_tugging"
         else:
             raise Exception(f"Tug {self.id} could not find a tugging path to goal {self.assigned_ac.goal}")
@@ -161,12 +156,10 @@ class Tug(object):
         INPUT:
             - ac_id: id of the aircraft to which the tug is detached
         """
-        print(f"Tug {self.id} detaching from aircraft {ac_id}")
         if self.assigned_ac != None and self.attached_ac != None:
             self.attached_ac = None
             self.path_to_goal = []
             self.status = "ready"
-            print(f"Tug {self.id} detached from aircraft {ac_id}")
         else:
             raise Exception(f"Tug {self.id} cannot detach from aircraft {ac_id} as it is not attached to any aircraft.")
             
