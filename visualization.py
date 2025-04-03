@@ -263,7 +263,7 @@ def predict_next_pos(pos, heading, dt):
 
 #%% Update map during running
 
-def map_running(map_properties, current_aircrafts, current_tugs, t, dt):  # function to update the map
+def map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions):  # function to update the map
     """
     Function updates Pygame map based on the map_properties, current state of the vehicles and the time.
     Collissions are detected if two aircraft are at the same xy_position. HINT: Is a collision the only conflict?    
@@ -313,10 +313,12 @@ def map_running(map_properties, current_aircrafts, current_tugs, t, dt):  # func
 
     if disp_aircaft_id:  # if the aircraft id has to be displayed
         for aircraft in current_aircrafts.keys():
-            id_string = 'ID: ' + str(current_aircrafts[aircraft]["ac_id"])  # create string with ID
+            id_string = 'ID: ' + str(current_aircrafts[aircraft]["ac_id"]) + ' Status: ' + str(current_aircrafts[aircraft]["status"])
             col = red
-            plot_text(scr, id_string, col, 14, reso, current_aircrafts[aircraft]["xy_pos"][0], current_aircrafts[aircraft]["xy_pos"][1], min_x, max_y, x_range, y_range, 0,
-                      25)
+            plot_text(scr, id_string, col, 20, reso, current_aircrafts[aircraft]["xy_pos"][0], current_aircrafts[aircraft]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, 7)
+        for tug in current_tugs.keys():
+            id_string = 'ID: ' + str(current_tugs[tug]["tug_id"]) + ' Status: ' + str(current_tugs[tug]["status"])
+            plot_text(scr, id_string, black, 20, reso, current_tugs[tug]["xy_pos"][0], current_tugs[tug]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, -7)
 
     collision=False
     # print("Time:", time)
@@ -328,6 +330,7 @@ def map_running(map_properties, current_aircrafts, current_tugs, t, dt):  # func
                 print("COLLISION - between", current_aircrafts[ac1]["ac_id"], "and", current_aircrafts[ac2]["ac_id"], "at location", current_aircrafts[ac1]["xy_pos"], "time", time)
                 plot_text(scr, "COLLISION", purple, 16, reso, current_aircrafts[ac1]["xy_pos"][0], current_aircrafts[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
                       25)
+                collisions.append(f'Aircraft {current_aircrafts[ac1]["ac_id"]} and Aircraft {current_aircrafts[ac2]["ac_id"]} at position {current_aircrafts[ac1]["xy_pos"]} at time {time}')
             # Detect edge collisions (aircrafts are moving towards each other)
             next_pos_ac1 = predict_next_pos(current_aircrafts[ac1]["xy_pos"], current_aircrafts[ac1]["heading"], dt)
             next_pos_ac2 = predict_next_pos(current_aircrafts[ac2]["xy_pos"], current_aircrafts[ac2]["heading"], dt)
@@ -336,6 +339,7 @@ def map_running(map_properties, current_aircrafts, current_tugs, t, dt):  # func
                 print("COLLISION - between", current_aircrafts[ac1]["ac_id"], "and", current_aircrafts[ac2]["ac_id"], "at location", current_aircrafts[ac1]["xy_pos"], "time", time)
                 plot_text(scr, "COLLISION", green, 16, reso, current_aircrafts[ac1]["xy_pos"][0], current_aircrafts[ac1]["xy_pos"][1]+0.1, min_x, max_y, x_range, y_range, 0,
                       25)
+                collisions.append(f'Aircraft {current_aircrafts[ac1]["ac_id"]} and Aircraft {current_aircrafts[ac2]["ac_id"]} at position {current_aircrafts[ac1]["xy_pos"]} at time {time}')
             
             
         

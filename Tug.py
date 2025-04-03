@@ -1,7 +1,6 @@
 from single_agent_planner import simple_single_agent_astar
 import math
 
-
 class Tug(object):
     """Tug class, should be used in the creation of new tug."""
     def __init__(self, tug_id, start_node, starting_energy, nodes_dict):
@@ -23,6 +22,8 @@ class Tug(object):
         
         #Route related
         self.status = 'ready' # ready, moving_free, moving_tugging, charging
+        self.assigned_ac = None #aircraft to which the tug is assigned
+        self.attached_ac = None
         self.path_to_goal = [] #planned path left from current location
         self.from_to = [start_node, start_node]  # Initialize with the starting node
         self.last_node = start_node #last node id
@@ -88,17 +89,21 @@ class Tug(object):
         # Check if goal is reached or if to_node is reached
         if self.position == xy_to:  # If the tug has reached the `to_node`
             if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # If the final goal is reached
-                self.status = "arrived"
                 print(f"Tug {self.id} reached its goal at {self.position}")
+                if self.position == self.assigned_ac.position:
+                    self.status = "moving_tugging"
+                    self.attach_to_ac()
+                    self.assigned_ac.acknowledge_attach(self.id)
             else:  # Update the path and move to the next step
                 self.path_to_goal = self.path_to_goal[1:]  # Remove the first step from the path
                 if self.path_to_goal:  # If there are more steps in the path
                     new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
                     new_next_id = self.path_to_goal[0][0]  # Next step in the path
                     self.from_to = [new_from_id, new_next_id]  # Update `from_to`
-                    print(f"Tug {self.id} updated path to {self.path_to_goal}")
-                else:
-                    self.status = "arrived"  # If no more steps, the tug has arrived
+        self.consume_energy()
+                    
+    def consume_energy(self):
+        pass
     
     def assign_ac(self, ac):
         """
@@ -107,19 +112,23 @@ class Tug(object):
             - ac: The aircraft to which the tug is assigned
         """
         if self.status == "ready":
-            self.assigned_ac = ac.id
+            self.assigned_ac = ac
             self.status = "assigned"
             self.goal = ac.start
     
-    def attach_to_ac(self, ac):
+    def attach_to_ac(self):
         """
         Attaches the tug to an aircraft.
         INPUT:
             - ac_id: id of the aircraft to which the tug is attached
         """
-        if self.status == "ready":
-            self.assigned_ac = ac.id
-            self.status = "attached"
+        if self.assigned_ac != None and self.attached_ac == None:
+            self.attached_ac = self.assigned_ac
+            self.path_to_goal = []  # Clear the path to goal
+            self.status = "moving_tugging"
+            print(f"Tug {self.id} attached to aircraft {self.assigned_ac.id}")
+        else:
+            raise Exception(f"Tug {self.id} cannot attach to aircraft {self.assigned_ac.id} as it is already attached to another aircraft. Current situation: assigned to {self.assigned_ac} and attached to {self.attached_ac}")
      
     def plan_free_path(self, heuristics, time_start):
         if self.from_to[0] not in self.nodes_dict or self.goal not in self.nodes_dict:
@@ -133,7 +142,33 @@ class Tug(object):
             self.status = "moving_free"
         else:
             raise Exception(f"Tug {self.id} could not find a free path to goal {self.goal}")
+    
+    def plan_tugging_path(self, heuristics, time_start):
+        if self.assigned_ac == None:
+            raise Exception(f"Tug {self.id} cannot plan a tugging path as it is not assigned to any aircraft.")
         
+        success, path = simple_single_agent_astar(self.nodes_dict, self.from_to[0], self.assigned_ac.goal, heuristics, time_start, [], f"tug{self.id}")
+        if success:
+            self.path_to_goal = path
+            self.from_to = [self.from_to[0], path[1][0]]
+            print(f'tug {self.id} planned tugging path to goal {self.assigned_ac.goal} with path {self.path_to_goal}')
+            self.status = "moving_tugging"
+        else:
+            raise Exception(f"Tug {self.id} could not find a tugging path to goal {self.assigned_ac.goal}")
+    def detach_ac(self, ac_id):
+        """
+        Detaches the tug from an aircraft.
+        INPUT:
+            - ac_id: id of the aircraft to which the tug is detached
+        """
+        print(f"Tug {self.id} detaching from aircraft {ac_id}")
+        if self.assigned_ac != None and self.attached_ac != None:
+            self.attached_ac = None
+            self.path_to_goal = []
+            self.status = "ready"
+            print(f"Tug {self.id} detached from aircraft {ac_id}")
+        else:
+            raise Exception(f"Tug {self.id} cannot detach from aircraft {ac_id} as it is not attached to any aircraft.")
             
     def __str__(self):
         return f"Tug {self.id} at {self.position} heading {self.heading} with energy {self.energy} assigned to {self.assigned_ac} with status {self.status}"

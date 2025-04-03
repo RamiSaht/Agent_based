@@ -22,6 +22,7 @@ class Aircraft(object):
         self.spawntime = spawn_time #spawntime
         self.start = start_node   #start_node_id
         self.goal = goal_node     #goal_node_id
+        self.nodes_dict = nodes_dict #keep copy of nodes dict
         # self.nodes_dict = nodes_dict #keep copy of nodes dict
         
         #Route related
@@ -32,7 +33,7 @@ class Aircraft(object):
 
         #State related
         self.heading = 0
-        self.position = nodes_dict[start_node]["xy_pos"] #xy position on map
+        self.position = self.nodes_dict[start_node]["xy_pos"] #xy position on map
 
     def get_heading(self, xy_start, xy_next):
         """
@@ -64,51 +65,15 @@ class Aircraft(object):
     
         self.heading = heading
       
-    def move(self, dt, t):   
-        """
-        Moves an aircraft between from_node and to_node and checks if to_node or goal is reached.
-        INPUT:
-            - dt = 
-            - t = 
-        """
+    def move(self):   
         
-        #Determine nodes between which the ac is moving
-        from_node = self.from_to[0]
-        to_node = self.from_to[1]
-        xy_from = self.nodes_dict[from_node]["xy_pos"] #xy position of from node
-        xy_to = self.nodes_dict[to_node]["xy_pos"] #xy position of to node
-        distance_to_move = self.speed*dt #distance to move in this timestep
-  
         #Update position with rounded values
-        x = xy_to[0]-xy_from[0]
-        y = xy_to[1]-xy_from[1]
-        if x!=0 or y!=0:
-            x_normalized = x / math.sqrt(x**2+y**2)
-            y_normalized = y / math.sqrt(x**2+y**2)
-        else:
-            x_normalized = 0
-            y_normalized = 0
-        posx = round(self.position[0] + x_normalized * distance_to_move ,2) #round to prevent errors
-        posy = round(self.position[1] + y_normalized * distance_to_move ,2) #round to prevent errors
-        self.position = (posx, posy)  
-        self.get_heading(xy_from, xy_to)	
-
-        #Check if goal is reached or if to_node is reached
-        if self.position == xy_to and self.path_to_goal[0][1] == t+dt: #If with this move its current to node is reached
-            if self.position == self.nodes_dict[self.goal]["xy_pos"]: #if the final goal is reached
-                self.status = "arrived"
-
-            else:  #current to_node is reached, update the remaining path
-                remaining_path = self.path_to_goal
-                self.path_to_goal = remaining_path[1:]
-                
-                new_from_id = self.from_to[1] #new from node
-                new_next_id = self.path_to_goal[0][0] #new to node
-
-                if new_from_id != self.from_to[0]:
-                    self.last_node = self.from_to[0]
-                
-                self.from_to = [new_from_id, new_next_id] #update new from and to node
+        if self.status == 'attached' and self.assigned_tug != None:
+            if self.position == self.nodes_dict[self.goal]["xy_pos"]:
+                self.detach_tug() #detach the tug
+                self.status = "done"
+                return
+            self.move_with_tug() #move with the tug
 
     def acknowledge_attach(self, tug_id):
         """
@@ -118,6 +83,7 @@ class Aircraft(object):
         """
         if self.status == "requested" and tug_id == self.assigned_tug.id:
             self.status = 'attached'
+            print(f"Aircraft {self.id} is now attached to Tug {tug_id}.")
             
     def move_with_tug(self):
         """
@@ -138,7 +104,16 @@ class Aircraft(object):
         if self.status == "waiting":
             self.assigned_tug = tug
             self.status = 'requested'
-            
-            
+     
+    def detach_tug(self):
+        """
+        Detaches the aircraft from the tug.
+        """
+        if self.status == "attached":
+            self.assigned_tug.detach_ac(self.id)
+            self.assigned_tug = None
+            self.status = 'done'
+            print(f"Aircraft {self.id} is now detached from its Tug.")
+             
     def __str__(self):
         return f"Aircraft {self.id} ({self.type}) at {self.position} with heading {self.heading} and status {self.status}"

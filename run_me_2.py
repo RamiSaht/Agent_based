@@ -23,7 +23,7 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 10
+simulation_time = 30
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
@@ -198,36 +198,40 @@ if visualization:
 #Start of while loop    
 running=True
 escape_pressed = False
-time_end = simulation_time
+time_end = simulation_time if simulation_time else 999999
 dt = 0.1 #should be factor of 0.5 (0.5/dt should be integer)
 t= 0
+collisions=[]
 aircraft_queue = [] #queue of aircraft that are waiting for a tug
 available_tugs = [] #list of available tugs
 print("Simulation Started")
 while running:
     t= round(t,2)    
-       
+    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
     #quit
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
         running = False
         pg.quit()
+        print(f'\nTotal collisions:\n{"\n".join(collisions)}')
         print("Simulation Stopped")
         break 
     
     #Visualization: Update map if visualization is true
     if visualization:
         current_aircrafts = {} #Collect current states of all aircraft
-        for ac in aircraft_lst:
+        for ac in active_aircrafts:
             current_aircrafts[ac.id] = {"ac_id": ac.id,
                                         "xy_pos": ac.position,
-                                        "heading": ac.heading}
+                                        "heading": ac.heading,
+                                        "status": ac.status}
         
         current_tugs = {} #Collect current states of all tugs
         for tug in tugs_lst:
             current_tugs[tug.id] = {"tug_id": tug.id,
                                          "xy_pos": tug.position,
-                                         "heading": tug.heading}
-        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt)
+                                         "heading": tug.heading,
+                                         "status": tug.status}
+        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions)
         timer.sleep(visualization_speed) 
       
         
@@ -241,7 +245,7 @@ while running:
         available_tugs = [tug for tug in tugs_lst if tug.status == "ready"]
         
         # get aircraft that are waiting for a tug
-        aircraft_queue = [ac for ac in aircraft_lst if ac.status == "waiting"]
+        aircraft_queue = [ac for ac in active_aircrafts if ac.status == "waiting"]
         while aircraft_queue and available_tugs:
             ac = aircraft_queue.pop(0)
             tug = available_tugs.pop(0)
@@ -258,7 +262,21 @@ while running:
         
         for tug in tugs_lst:
             if tug.status == "moving_free":
-                tug.move(dt, t) #move tug
+                if tug.path_to_goal == []:
+                    tug.goal = tug.assigned_ac.start  # Set goal to the aircraft's start node
+                    tug.plan_free_path(heuristics, t)  # Plan free path for tug
+            if tug.status == "moving_tugging":
+                if tug.path_to_goal == []:
+                    tug.goal = tug.assigned_ac.goal #set goal to the aircraft's goal
+                    tug.plan_tugging_path(heuristics, t) #plan path to aircraft goal
+            if 'moving' in tug.status:
+                tug.move(dt, t)
+                
+                
+                
+        for ac in active_aircrafts:
+            if ac.status == "attached":
+                ac.move()
                 
     t = t + dt
           
