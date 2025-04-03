@@ -175,6 +175,20 @@ def parse_tugs(file_path, nodes_dict):
         lst.append(Tug(row.tug_id, row.starting_node, row.starting_energy, nodes_dict))
     
     return lst
+
+def assign_tug_to_aircraft(aircraft_queue_l,available_tugs_l):
+    """
+    Needs to be implemented.
+    Input:
+        - aircraft_queue_l: list of aircraft waiting for a tug
+        - available_tugs_l: list of available tugs
+    """
+    ac = aircraft_queue_l.pop(0)
+    tug = available_tugs_l.pop(0)
+    ac.assign_tug(tug)
+    tug.assign_ac(ac)
+    return 
+
 #%% RUN SIMULATION
 # =============================================================================
 # 0. Initialization
@@ -247,10 +261,7 @@ while running:
         # get aircraft that are waiting for a tug
         aircraft_queue = [ac for ac in active_aircrafts if ac.status == "waiting"]
         while aircraft_queue and available_tugs:
-            ac = aircraft_queue.pop(0)
-            tug = available_tugs.pop(0)
-            ac.assign_tug(tug)
-            tug.assign_ac(ac)
+            assign_tug_to_aircraft(aircraft_queue, available_tugs)
             print(f"Assigned tug {tug} to ac \n{ac}")
         
         
