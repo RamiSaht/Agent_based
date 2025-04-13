@@ -16,6 +16,7 @@ from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
 from Tug import Tug
+import random
 
 #%% SET SIMULATION PARAMETERS
 #Input file names (used in import_layout) -> Do not change those unless you want to specify a new layout.
@@ -23,12 +24,15 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 30
+simulation_time = 100
+random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
+num_aircraft = 5 #number of aircraft to be generated
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.05 #set at 0.1 as default
+visualization_speed = 0.01 #set at 0.1 as default
 
 #%%Function definitions
 def import_layout(nodes_file, edges_file):
@@ -176,31 +180,84 @@ def parse_tugs(file_path, nodes_dict):
     
     return lst
 
-def assign_tug_to_aircraft(aircraft_queue_l,available_tugs_l):
+def assign_tug_to_aircraft(aircraft_to_assign_l, available_tugs_l, t_l):
     """
-    Needs to be implemented.
+    Assigns a tug to an aircraft based on the bids made by the tugs.
+    The tug with the minimum bid is assigned to the aircraft.
     Input:
         - aircraft_queue_l: list of aircraft waiting for a tug
         - available_tugs_l: list of available tugs
+        - t_l: current time
     """
-    ac = aircraft_queue_l.pop(0)
-    tug = available_tugs_l.pop(0)
-    ac.assign_tug(tug)
-    tug.assign_ac(ac)
-    return 
+    bids = {}
+    for tug in available_tugs_l:
+        bids[tug.id] = tug.make_bid(aircraft_to_assign_l, heuristics, t_l)
+    
+    # Find the tug with the minimum bid
+    min_bid_tug_id = min(bids, key=bids.get)
+    if bids[min_bid_tug_id] == float('inf'):
+        return False
+    
+    print(f"For aircraft {aircraft_to_assign_l.id}, bids are: \n{bids}")
+    # Assign the tug to the aircraft
+    for tug in available_tugs_l:
+        if tug.id == min_bid_tug_id:
+            print(f"Assigning tug {tug.id} to aircraft {aircraft_to_assign_l.id}")
+            tug.assign_ac(aircraft_to_assign_l)
+            aircraft_to_assign_l.assign_tug(tug)
+    
+    
+    return True
 
+def continuous_random_generation(t):
+    # Test if it's time to generate a new aircraft
+    
+    random_generation_interval = random_generation_time // num_aircraft
+    num_simulated_aircraft = len(aircraft_lst)
+    
+    if t < random_generation_time and random_generation_interval * num_simulated_aircraft <= t:
+        occupied_gates = [ac.start for ac in aircraft_lst if ac.type == "D"]
+        occupied_rwy_arrs = [ac.start for ac in aircraft_lst if ac.type == "A"]
+        available_gates = [gate for gate in gates if gate not in occupied_gates]
+        available_rwy_arrs = [rwy for rwy in rwy_arrs if rwy not in occupied_rwy_arrs]
+        choice = random.choice(aircraft_type_choices)
+        spawn_time_l =  t
+        if choice == "A" and available_rwy_arrs:
+            start_node = random.choice(available_rwy_arrs)
+            goal_node = random.choice(gates)
+        elif choice == "D" and available_gates:
+            start_node = random.choice(available_gates)
+            goal_node = random.choice(rwy_deps)
+        else:
+            return
+        
+        ac = Aircraft(f'A{num_simulated_aircraft}', choice, start_node, goal_node, spawn_time_l, nodes_dict)
+        aircraft_lst.append(ac)
+        spawn_times.append(spawn_time_l)
+        print(f"Aircraft {ac.id} generated at time {t} with start node {start_node} and goal node {goal_node}")
+    return
+    
+    
+    
 #%% RUN SIMULATION
 # =============================================================================
 # 0. Initialization
 # =============================================================================
 nodes_dict, edges_dict, start_and_goal_locations = import_layout(nodes_file, edges_file)
+gates = [node for node in nodes_dict if nodes_dict[node]["type"] == "gate"]
+rwy_deps = [node for node in nodes_dict if nodes_dict[node]["type"] == "rwy_d"]
+rwy_arrs = [node for node in nodes_dict if nodes_dict[node]["type"] == "rwy_a"]
+charging_nodes = [node for node in nodes_dict if nodes_dict[node]["type"] == "charging"]
+aircraft_type_choices = ["A", "D"]
+
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
-aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)   #List which can contain aircraft agents
+if random_schedule:
+    aircraft_lst, spawn_times = [], [] #List which can contain aircraft agents
+else:
+    aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
+    
 tugs_lst = parse_tugs("tugs.csv", nodes_dict) #List which can contain tug agents
-print(f'aircraft_lst: {aircraft_lst}')
-print(f'tugs_lst: {[tug for tug in tugs_lst]}')
-print('spawn_times', spawn_times)
 
 if visualization:
     map_properties = map_initialization(nodes_dict, edges_dict) #visualization properties
@@ -220,7 +277,8 @@ aircraft_queue = [] #queue of aircraft that are waiting for a tug
 available_tugs = [] #list of available tugs
 print("Simulation Started")
 while running:
-    t= round(t,2)    
+    t= round(t,2)
+    continuous_random_generation(t) if random_schedule else None #generate random aircraft if random_schedule is true
     active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
     #quit
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
@@ -244,7 +302,10 @@ while running:
             current_tugs[tug.id] = {"tug_id": tug.id,
                                          "xy_pos": tug.position,
                                          "heading": tug.heading,
-                                         "status": tug.status}
+                                         "status": tug.status,
+                                         "energy": tug.energy,
+                                         "assigned_ac": tug.assigned_ac.id if tug.assigned_ac else None,
+                                         "secondary_ac": tug.secondary_assigned_ac.id if tug.secondary_assigned_ac else None}
         escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions)
         timer.sleep(visualization_speed) 
       
@@ -255,20 +316,20 @@ while running:
     elif planner == "Prioritized":
         run_prioritized_planner()
     elif planner == "CBS":
+        
         # get available tugs
-        available_tugs = [tug for tug in tugs_lst if tug.status == "ready"]
+        available_tugs = [tug for tug in tugs_lst]
         
         # get aircraft that are waiting for a tug
         aircraft_queue = [ac for ac in active_aircrafts if ac.status == "waiting"]
-        while aircraft_queue and available_tugs:
-            assign_tug_to_aircraft(aircraft_queue, available_tugs)
-            print(f"Assigned tug {tug} to ac \n{ac}")
+        while aircraft_queue:
+            ac_to_assign = aircraft_queue.pop(0)  # Get the first aircraft in the queue
+            assign_tug_to_aircraft(ac_to_assign, available_tugs, t)
         
         
-        for tug in tugs_lst:
+        for tug in tugs_lst: ## Check if tug is available
             if tug.status == "assigned":
-                if tug.goal is None:  # Ensure goal is set
-                    tug.goal = tug.assigned_ac.start  # Set goal to the aircraft's start node
+                tug.path_to_goal = [] #reset path to goal
                 tug.plan_free_path(heuristics, t)  # Plan free path for tug
         
         for tug in tugs_lst:
@@ -282,13 +343,22 @@ while running:
                     tug.plan_tugging_path(heuristics, t) #plan path to aircraft goal
             if 'moving' in tug.status:
                 tug.move(dt, t)
-                
-                
-                
+            
+            if tug.status == "low_energy":
+                if charging_nodes:
+                    tug.assigned_ac = None #detach aircraft
+                    tug.path_to_goal = [] #reset path to goal
+                    tug.goal = random.choice(charging_nodes)
+                    
+                    tug.plan_free_path(heuristics, t)  # Plan free path for tug
+                    
+            if tug.status == "charging":
+                tug.charge(dt)
+                    
         for ac in active_aircrafts:
             if ac.status == "attached":
                 ac.move()
-                
+        
     t = t + dt
           
 # =============================================================================

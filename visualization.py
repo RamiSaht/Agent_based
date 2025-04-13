@@ -315,10 +315,11 @@ def map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisio
         for aircraft in current_aircrafts.keys():
             id_string = 'ID: ' + str(current_aircrafts[aircraft]["ac_id"]) + ' Status: ' + str(current_aircrafts[aircraft]["status"])
             col = red
-            plot_text(scr, id_string, col, 20, reso, current_aircrafts[aircraft]["xy_pos"][0], current_aircrafts[aircraft]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, 7)
+            plot_text(scr, id_string, col, 24, reso, current_aircrafts[aircraft]["xy_pos"][0], current_aircrafts[aircraft]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, 7)
         for tug in current_tugs.keys():
-            id_string = 'ID: ' + str(current_tugs[tug]["tug_id"]) + ' Status: ' + str(current_tugs[tug]["status"])
-            plot_text(scr, id_string, black, 20, reso, current_tugs[tug]["xy_pos"][0], current_tugs[tug]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, -7)
+            id_string = 'ID: ' + str(current_tugs[tug]["tug_id"]) + ' Status: ' + str(current_tugs[tug]["status"] + ' Battery: ' + str(current_tugs[tug]["energy"]) + ' Assgined: ' + f"{current_tugs[tug]['assigned_ac']}, {current_tugs[tug]['secondary_ac']}" )
+            plot_text(scr, id_string, black, 24, reso, current_tugs[tug]["xy_pos"][0], current_tugs[tug]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, -7)
+        
 
     collision=False
     # print("Time:", time)

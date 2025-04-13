@@ -109,9 +109,13 @@ class Aircraft(object):
         Detaches the aircraft from the tug.
         """
         if self.status == "attached":
+            self.assigned_tug.position = self.position #update the position of the tug
             self.assigned_tug.detach_ac(self.id)
             self.assigned_tug = None
             self.status = 'done'
              
     def __str__(self):
         return f"Aircraft {self.id} ({self.type}) at {self.position} with heading {self.heading} and status {self.status}"
+    
+    def __repr__(self):
+        return self.__str__()
