@@ -17,6 +17,7 @@ class Aircraft(object):
         """
         
         #Fixed parameters
+        self.speed = 1 #how much ac moves per unit of time
         self.id = flight_id       #flight_id
         self.type = a_d           #arrival or departure (A/D)
         self.spawntime = spawn_time #spawntime
@@ -24,9 +25,12 @@ class Aircraft(object):
         self.goal = goal_node     #goal_node_id
         self.nodes_dict = nodes_dict #keep copy of nodes dict
         # self.nodes_dict = nodes_dict #keep copy of nodes dict
-        
+        tugs_modes=1
         #Route related
-        self.status = 'waiting' # waiting, requested, attached, done
+        if tugs_modes==1:
+            self.status = 'waiting' # waiting, requested, attached, done
+        else:
+            self.status=None
         self.path_to_goal = [] #planned path left from current location
         self.from_to = [0,0]
         self.assigned_tug = None #tug to which the aircraft is attached
@@ -65,15 +69,56 @@ class Aircraft(object):
     
         self.heading = heading
       
-    def move(self):   
-        
-        #Update position with rounded values
-        if self.status == 'attached' and self.assigned_tug != None:
-            if self.position == self.nodes_dict[self.goal]["xy_pos"]:
-                self.detach_tug() #detach the tug
-                self.status = "done"
-                return
-            self.move_with_tug() #move with the tug
+    def move(self,tugs_mode,dt,t):
+        #tugs movement
+        if tugs_mode==1:
+            #Update position with rounded values
+            if self.status == 'attached' and self.assigned_tug != None:
+                if self.position == self.nodes_dict[self.goal]["xy_pos"]:
+                    self.detach_tug() #detach the tug
+                    self.status = "done"
+                    return
+                self.move_with_tug() #move with the tug
+        #no tugs movement
+        else:
+            # Determine nodes between which the ac is moving
+            from_node = self.from_to[0]
+            to_node = self.from_to[1]
+            xy_from = self.nodes_dict[from_node]["xy_pos"]  # xy position of from node
+            xy_to = self.nodes_dict[to_node]["xy_pos"]  # xy position of to node
+            distance_to_move = self.speed * dt  # distance to move in this timestep
+
+            # Update position with rounded values
+            x = xy_to[0] - xy_from[0]
+            y = xy_to[1] - xy_from[1]
+            if x != 0 or y != 0:
+                x_normalized = x / math.sqrt(x ** 2 + y ** 2)
+                y_normalized = y / math.sqrt(x ** 2 + y ** 2)
+            else:
+                x_normalized = 0
+                y_normalized = 0
+            posx = round(self.position[0] + x_normalized * distance_to_move, 2)  # round to prevent errors
+            posy = round(self.position[1] + y_normalized * distance_to_move, 2)  # round to prevent errors
+            self.position = (posx, posy)
+            self.get_heading(xy_from, xy_to)
+
+            # Check if goal is reached or if to_node is reached
+            if self.position == xy_to and self.path_to_goal[0][
+                1] == t + dt:  # If with this move its current to node is reached
+                if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # if the final goal is reached
+                    self.status = "arrived"
+
+                else:  # current to_node is reached, update the remaining path
+                    remaining_path = self.path_to_goal
+                    self.path_to_goal = remaining_path[1:]
+
+                    new_from_id = self.from_to[1]  # new from node
+                    new_next_id = self.path_to_goal[0][0]  # new to node
+
+                    if new_from_id != self.from_to[0]:
+                        self.last_node = self.from_to[0]
+
+                    self.from_to = [new_from_id, new_next_id]  # update new from and to node
 
     def acknowledge_attach(self, tug_id):
         """

@@ -263,7 +263,7 @@ def predict_next_pos(pos, heading, dt):
 
 #%% Update map during running
 
-def map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions):  # function to update the map
+def map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions,tugs):  # function to update the map
     """
     Function updates Pygame map based on the map_properties, current state of the vehicles and the time.
     Collissions are detected if two aircraft are at the same xy_position. HINT: Is a collision the only conflict?    
@@ -298,12 +298,12 @@ def map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisio
             x_pos = current_aircrafts[aircraft]["xy_pos"][0]
             y_pos = current_aircrafts[aircraft]["xy_pos"][1]
             plot_aircraft(scr, reso, heading, x_pos, y_pos, min_x, max_y, x_range, y_range)
-            
-        for tug in current_tugs.keys():
-            heading = int(current_tugs[tug]["heading"])
-            x_pos = current_tugs[tug]["xy_pos"][0]
-            y_pos = current_tugs[tug]["xy_pos"][1]
-            plot_tug(scr, reso, heading, x_pos, y_pos, min_x, max_y, x_range, y_range)
+        if tugs!=0:
+            for tug in current_tugs.keys():
+                heading = int(current_tugs[tug]["heading"])
+                x_pos = current_tugs[tug]["xy_pos"][0]
+                y_pos = current_tugs[tug]["xy_pos"][1]
+                plot_tug(scr, reso, heading, x_pos, y_pos, min_x, max_y, x_range, y_range)
             
     if disp_time:
       plot_text(scr, "timestep", black, 30, reso, min_x + 0.90 * x_range, max_y - 0.03 * y_range, min_x, max_y,
@@ -316,9 +316,10 @@ def map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisio
             id_string = 'ID: ' + str(current_aircrafts[aircraft]["ac_id"]) + ' Status: ' + str(current_aircrafts[aircraft]["status"])
             col = red
             plot_text(scr, id_string, col, 24, reso, current_aircrafts[aircraft]["xy_pos"][0], current_aircrafts[aircraft]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, 7)
-        for tug in current_tugs.keys():
-            id_string = 'ID: ' + str(current_tugs[tug]["tug_id"]) + ' Status: ' + str(current_tugs[tug]["status"] + ' Battery: ' + str(current_tugs[tug]["energy"]) + ' Assgined: ' + f"{current_tugs[tug]['assigned_ac']}, {current_tugs[tug]['secondary_ac']}" )
-            plot_text(scr, id_string, black, 24, reso, current_tugs[tug]["xy_pos"][0], current_tugs[tug]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, -7)
+        if tugs!=0:
+            for tug in current_tugs.keys():
+                id_string = 'ID: ' + str(current_tugs[tug]["tug_id"]) + ' Status: ' + str(current_tugs[tug]["status"] + ' Battery: ' + str(current_tugs[tug]["energy"]) + ' Assgined: ' + f"{current_tugs[tug]['assigned_ac']}, {current_tugs[tug]['secondary_ac']}" )
+                plot_text(scr, id_string, black, 24, reso, current_tugs[tug]["xy_pos"][0], current_tugs[tug]["xy_pos"][1], min_x, max_y, x_range, y_range, 0, -7)
         
 
     collision=False

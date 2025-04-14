@@ -22,7 +22,7 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 30
+simulation_time = 100
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
@@ -197,9 +197,10 @@ if visualization:
 #Start of while loop    
 running=True
 escape_pressed = False
-time_end = simulation_time
+time_end = simulation_time if simulation_time else 999999
 dt = 0.1 #should be factor of 0.5 (0.5/dt should be integer)
 t= 0
+tugs_mode=0
 
 print("Simulation Started")
 while running:
@@ -219,14 +220,15 @@ while running:
             if ac.status == "taxiing":
                 current_aircrafts[ac.id] = {"ac_id": ac.id,
                                          "xy_pos": ac.position,
-                                         "heading": ac.heading}
+                                         "heading": ac.heading,
+                                            "status": ac.status}
         
         current_tugs = {} #Collect current states of all tugs
         for tug in tugs_lst:
             current_tugs[tug.id] = {"tug_id": tug.id,
                                          "xy_pos": tug.position,
                                          "heading": tug.heading}
-        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt)
+        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt,collisions=[],tugs=tugs_mode)
         timer.sleep(visualization_speed) 
       
         
@@ -260,8 +262,9 @@ while running:
                        
     #Move the aircraft that are taxiing
     for ac in aircraft_lst: 
-        if ac.status == "taxiing": 
-            ac.move(dt, t)
+        if ac.status == "taxiing":
+            # Aircraft moves with assigned tug
+            ac.move(tugs_mode,dt,t)
                            
     t = t + dt
           

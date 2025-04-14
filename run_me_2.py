@@ -306,7 +306,7 @@ while running:
                                          "energy": tug.energy,
                                          "assigned_ac": tug.assigned_ac.id if tug.assigned_ac else None,
                                          "secondary_ac": tug.secondary_assigned_ac.id if tug.secondary_assigned_ac else None}
-        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions)
+        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions,tugs=1)
         timer.sleep(visualization_speed) 
       
         
@@ -357,7 +357,7 @@ while running:
                     
         for ac in active_aircrafts:
             if ac.status == "attached":
-                ac.move()
+                ac.move(tugs_mode=1,dt=dt,t=t)
         
     t = t + dt
           
