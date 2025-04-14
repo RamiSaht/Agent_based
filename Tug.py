@@ -1,6 +1,22 @@
 from traceback import print_tb
+
+from cbs import run_cbs_for_attached_tugs
 from single_agent_planner import simple_single_agent_astar
 import math
+
+def find_closest_node(position, nodes_dict):
+    """
+    Find the closest node to a given (x, y) position.
+    """
+    min_distance = float('inf')
+    closest_node = None
+    for node_id, node_data in nodes_dict.items():
+        node_pos = node_data["xy_pos"]
+        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            closest_node = node_id
+    return closest_node
 
 class Tug(object):
     """Tug class, should be used in the creation of new tug."""
@@ -70,14 +86,13 @@ class Tug(object):
     
         self.heading = heading
         
-    def move(self, dt, t):   
+    def move(self, dt, t):
         # Determine nodes between which the tug is moving
         from_node = self.from_to[0]
         to_node = self.from_to[1]
         xy_from = self.nodes_dict[from_node]["xy_pos"]  # xy position of from node
         xy_to = self.nodes_dict[to_node]["xy_pos"]  # xy position of to node
         distance_to_move = self.speed * dt  # distance to move in this timestep
-
         # Update position with rounded values
         x = xy_to[0] - xy_from[0]
         y = xy_to[1] - xy_from[1]
@@ -165,30 +180,96 @@ class Tug(object):
                 self.attach_to_ac()
                 self.assigned_ac.acknowledge_attach(self.id)
                 return
-            
         success, path = simple_single_agent_astar(self.nodes_dict, self.from_to[0], self.goal, heuristics, time_start, [], f"tug{self.id}")
         if success:
             self.path_to_goal = path
-            self.from_to = [self.from_to[0], path[1][0]]
+            self.from_to = [self.from_to[1], path[0][0]]
             if self.status == "low_energy":
                 self.status = "moving_charging"
             else:
                 self.status = "moving_free"
         else:
             raise Exception(f"Tug {self.id} could not find a free path to goal {self.goal}")
-    
-    def plan_tugging_path(self, heuristics, time_start):
-        if self.assigned_ac == None:
-            raise Exception(f"Tug {self.id} cannot plan a tugging path as it is not assigned to any aircraft.")
-        
-        success, path = simple_single_agent_astar(self.nodes_dict, self.from_to[0], self.assigned_ac.goal, heuristics, time_start, [], f"tug{self.id}")
-        if success:
-            self.path_to_goal = path
-            self.from_to = [self.from_to[0], path[1][0]]
-            self.status = "moving_tugging"
-        else:
-            raise Exception(f"Tug {self.id} could not find a tugging path to goal {self.assigned_ac.goal}")
-        
+
+    def plan_tugging_path(self, tug_list, aircraft_list, nodes_dict, edges_dict, heuristics, current_time,
+                          max_static_block=10):
+        """
+        Plan a tugging path using Conflict-Based Search (CBS) for all currently tugging tugs.
+        Only needs to be called once per planning instance (e.g., after attachment).
+        """
+        import networkx as nx
+
+        if not self.attached_ac:
+            print(f"Tug {self.id} is not attached to any aircraft. Skipping CBS planning.")
+            return
+
+        # Build the graph
+        graph = nx.DiGraph()
+        for edge, edge_data in edges_dict.items():
+            weight = edge_data.get("weight", 1) if isinstance(edge_data, dict) else edge_data
+            if edge[0] in nodes_dict and edge[1] in nodes_dict:
+                graph.add_edge(edge[0], edge[1], weight=weight)
+
+        # --- 1. Collect moving tugs and their goals ---
+        starts, goals, moving_tugs = [], [], []
+
+        for tug in tug_list:
+            if tug.attached_ac:
+                ac = tug.attached_ac
+                start_node = find_closest_node(tug.position, nodes_dict)
+                goal_node = ac.goal
+                starts.append(start_node)
+                goals.append(goal_node)
+                moving_tugs.append(tug)
+
+        # --- 2. Temporarily static aircraft (waiting for tug) ---
+        # add chokepoints for static blocking (10 seconds)
+        chokepoints = {
+            37: [11, 101, 37],
+            38: [12, 102, 38],
+            1: [4, 95, 1],
+            2: [5, 96, 2],
+            97: [29, 99, 97],
+            34: [30, 92, 34],
+            35: [31, 93, 35],
+            36: [32, 94, 36],
+            98: [33, 100,98]
+        }
+
+        static_blocks = []
+        for ac in aircraft_list:
+            current_node = find_closest_node(ac.position,nodes_dict)
+            current_time=int(current_time)
+            print(ac.id,current_node)
+            if ac.status == "requested" and current_node in chokepoints:
+                block_path = chokepoints[current_node]
+                print(block_path)
+                for node in block_path:
+                    static_blocks.append((node, current_time, current_time + max_static_block))
+            elif ac.status == "requested":
+                static_blocks.append((current_node, current_time, current_time + max_static_block))
+        print(static_blocks,current_time)
+        # --- 3. Run CBS ---
+        from cbs import CBSSolver  # ensure CBSSolver is imported correctly
+        cbs_solver = CBSSolver(graph, nodes_dict, starts, goals, current_time, heuristics,
+                               static_obstacles=static_blocks)
+
+
+        try:
+            paths = cbs_solver.find_solution()
+
+        except Exception as e:
+            print(f"[CBS ERROR] Failed to find tugging paths: {e}")
+            return
+
+        # --- 4. Assign paths back to tugs and aircraft ---
+        for tug, path in zip(moving_tugs, paths):
+            print(path)
+            tug.path_to_goal = path
+            tug.status = "moving_tugging"
+            tug.attached_ac.path = path  # optional, for syncing visualization
+            if len(path) > 1:
+                tug.from_to = [path[0][0], path[1][0]]
     def calculate_free_path(self, from_node, to_node, heuristics, time_start):
         """
         Calculates the path to the goal without executing it.

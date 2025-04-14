@@ -25,14 +25,14 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 
 #Parameters that can be changed:
 simulation_time = 100
-random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
 num_aircraft = 5 #number of aircraft to be generated
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.01 #set at 0.1 as default
+visualization_speed = 0.1 #set at 0.1 as default
 
 #%%Function definitions
 def import_layout(nodes_file, edges_file):
@@ -279,6 +279,7 @@ print("Simulation Started")
 while running:
     t= round(t,2)
     continuous_random_generation(t) if random_schedule else None #generate random aircraft if random_schedule is true
+    # aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
     active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
     #quit
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
@@ -316,31 +317,34 @@ while running:
     elif planner == "Prioritized":
         run_prioritized_planner()
     elif planner == "CBS":
-        
+
         # get available tugs
         available_tugs = [tug for tug in tugs_lst]
-        
+
         # get aircraft that are waiting for a tug
         aircraft_queue = [ac for ac in active_aircrafts if ac.status == "waiting"]
         while aircraft_queue:
             ac_to_assign = aircraft_queue.pop(0)  # Get the first aircraft in the queue
             assign_tug_to_aircraft(ac_to_assign, available_tugs, t)
-        
+
+        new_tugging_started=False
         
         for tug in tugs_lst: ## Check if tug is available
             if tug.status == "assigned":
                 tug.path_to_goal = [] #reset path to goal
                 tug.plan_free_path(heuristics, t)  # Plan free path for tug
+                print(tug.path_to_goal)
         
         for tug in tugs_lst:
             if tug.status == "moving_free":
                 if tug.path_to_goal == []:
                     tug.goal = tug.assigned_ac.start  # Set goal to the aircraft's start node
                     tug.plan_free_path(heuristics, t)  # Plan free path for tug
+
             if tug.status == "moving_tugging":
-                if tug.path_to_goal == []:
-                    tug.goal = tug.assigned_ac.goal #set goal to the aircraft's goal
-                    tug.plan_tugging_path(heuristics, t) #plan path to aircraft goal
+                if not tug.path_to_goal:
+                    # This tug just started tugging this timestep
+                    new_tugging_started = True
             if 'moving' in tug.status:
                 tug.move(dt, t)
             
@@ -354,7 +358,21 @@ while running:
                     
             if tug.status == "charging":
                 tug.charge(dt)
-                    
+        if new_tugging_started or t in spawn_times:
+            for tug in tugs_lst:
+                if tug.status == "moving_tugging":
+                    print("I am running")
+                    tug.plan_tugging_path(
+                        tug_list=tugs_lst,
+                        aircraft_list=active_aircrafts,
+                        nodes_dict=nodes_dict,
+                        edges_dict=edges_dict,
+                        heuristics=heuristics,
+                        current_time=t,
+                        max_static_block=10
+                    )
+                    break  # Only one call is needed since the method handles all tugging tugs
+
         for ac in active_aircrafts:
             if ac.status == "attached":
                 ac.move(tugs_mode=1,dt=dt,t=t)

@@ -65,7 +65,7 @@ def standard_splitting(collision):
     return constraints
 
 class CBSSolver:
-    def __init__(self, graph, nodes_dict, starts, goals,t,heuristics):
+    def __init__(self, graph, nodes_dict, starts, goals,t,heuristics, static_obstacles=None):
         self.graph = graph  # This should be a DiGraph
         self.nodes_dict = nodes_dict
         self.starts = starts
@@ -76,6 +76,7 @@ class CBSSolver:
         self.open_list = []
         self.heuristics = heuristics
         self.time = t
+        self.static_obstacles = static_obstacles or []
     def push_node(self, node):
         heapq.heappush(self.open_list, (node['cost'], len(node['collisions']), self.num_of_generated, node))
         self.num_of_generated += 1
@@ -88,6 +89,18 @@ class CBSSolver:
     def find_solution(self):
         start_time = self.time
         root = {'cost': 0, 'constraints': [], 'paths': [], 'collisions': []}
+        for node_id, t_start, t_end in self.static_obstacles:
+            timestep = round(t_start, 2)
+            while timestep <= round(t_end, 2):
+                for agent in range(self.num_of_agents):
+                    root['constraints'].append({
+                        'positive': False,
+                        'agent': agent,
+                        'loc': [node_id],
+                        'timestep': timestep
+                    })
+                timestep = round(timestep + 0.5, 2)
+
         for i in range(self.num_of_agents):
             path = simple_single_agent_astar(self.nodes_dict, self.starts[i], self.goals[i], self.heuristics, start_time,
                                              root['constraints'], i)
@@ -170,3 +183,51 @@ def run_CBS(graph, aircraft_lst, nodes_dict, edges_dict, heuristics, t, starts, 
             # Update position to the closest node in the new path
             ac.position = nodes_dict[path[0][0]]["xy_pos"]
     print(paths)
+
+def run_cbs_for_attached_tugs(tug_list, aircraft_list, nodes_dict, edges_dict, heuristics, t, max_static_block=10):
+    import networkx as nx
+    graph = nx.DiGraph()
+
+    # Build the graph
+    for edge, edge_data in edges_dict.items():
+        weight = edge_data.get("weight", 1) if isinstance(edge_data, dict) else edge_data
+        if edge[0] in nodes_dict and edge[1] in nodes_dict:
+            graph.add_edge(edge[0], edge[1], weight=weight)
+
+    # -- 1. Build CBS agent sets --
+    starts = []
+    goals = []
+
+    # a) Moving agents (tugged aircraft)
+    for tug in tug_list:
+        if tug.attached_ac:
+            ac = tug.attached_ac
+            start_node = tug.position  # Or ac.position_node, depending on model
+            goal_node = tug.attached_ac.goal
+            starts.append(start_node)
+            goals.append(goal_node)
+
+    # b) Temporarily static agents (aircraft waiting for tug)
+    static_blocks = []
+    for ac in aircraft_list:
+        if ac.status == "waiting":
+            static_node = ac.position
+            # Block for max_static_block time steps starting at t
+            static_blocks.append((static_node, t, t + max_static_block))
+
+    # -- 2. Initialize CBS solver with static constraints --
+    cbs_solver = CBSSolver(graph, nodes_dict, starts, goals, t, heuristics,
+                           static_obstacles=int(static_blocks))  # <-- You'd need to add support for this
+
+    # -- 3. Solve
+    try:
+        paths = cbs_solver.find_solution()
+    except Exception as e:
+        print(f"CBS failed: {e}")
+        return
+
+    # -- 4. Assign paths
+    for tug, path in zip([t for t in tug_list if t.attached_aircraft], paths):
+        tug.path = path
+        tug.status = "tugging"
+        tug.attached_aircraft.path = path  # optional, for visualization
