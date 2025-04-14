@@ -160,7 +160,13 @@ class Tug(object):
         INPUT:
             - ac: The aircraft to which the tug is assigned
         """
-        if self.status == "ready":
+        if self.status == "charging":
+            # If currently charging, set as secondary assignment
+            if self.assigned_ac is None:
+                self.assigned_ac = ac
+            else:
+                raise Exception(f"Tug {self.id} already has secondary assignment")
+        elif self.status == "ready":
             self.assigned_ac = ac
             self.status = "assigned"
             self.goal = ac.start  # Set goal to the aircraft's start node
@@ -336,9 +342,14 @@ class Tug(object):
         """
         self.energy = min(self.energy + self.charge_speed * dt, 100)  # Ensure energy doesn't exceed 100%
         if self.energy >= 100:
-            self.status = "ready"
-            self.goal = None
-            self.path_to_goal = []  # Clear the path to avoid stale data
+            if self.assigned_ac==None:
+                self.status = "ready"
+                self.goal = None
+                self.path_to_goal = []  # Clear the path to avoid stale data
+            else:
+                self.status = "assigned"
+                self.goal = self.assigned_ac.start  # Set goal to the aircraft's start node
+                self.path_to_goal = []  # Clear any existing path
             
         return self.energy
     
@@ -380,7 +391,11 @@ class Tug(object):
             
             if self.energy - charge_needed_to_ac > self.energy_threshold:
                 return time_to_reach_ac
-        
+        elif self.status == "charging" and self.assigned_ac==None:
+            #calculate time left to charge
+            time_to_charge = ((100-self.energy)/self.charge_speed)
+            time_to_reach_ac=self.calculate_free_path(self.from_to[0],ac.start,heuristics,bid_time+time_to_charge)[-1][1]
+            return time_to_reach_ac
         
         return float('inf')
 
