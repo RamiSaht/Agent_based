@@ -85,7 +85,7 @@ class Tug(object):
             raise Exception("Invalid movement")
     
         self.heading = heading
-        
+
     def move(self, dt, t):
         # Determine nodes between which the tug is moving
         from_node = self.from_to[0]
@@ -93,19 +93,25 @@ class Tug(object):
         xy_from = self.nodes_dict[from_node]["xy_pos"]  # xy position of from node
         xy_to = self.nodes_dict[to_node]["xy_pos"]  # xy position of to node
         distance_to_move = self.speed * dt  # distance to move in this timestep
-        # Update position with rounded values
-        x = xy_to[0] - xy_from[0]
-        y = xy_to[1] - xy_from[1]
-        if x != 0 or y != 0:
-            x_normalized = x / math.sqrt(x**2 + y**2)
-            y_normalized = y / math.sqrt(x**2 + y**2)
+
+        # Calculate the remaining distance to the next node
+        remaining_distance = math.sqrt((xy_to[0] - self.position[0]) ** 2 + (xy_to[1] - self.position[1]) ** 2)
+
+        # If we're very close to the node, just snap to it
+        if remaining_distance < 0.01:
+            self.position = xy_to
+            distance_moved = remaining_distance
         else:
-            x_normalized = 0
-            y_normalized = 0
-            distance_to_move = 0
-        posx = round(self.position[0] + x_normalized * distance_to_move, 2)  # round to prevent errors
-        posy = round(self.position[1] + y_normalized * distance_to_move, 2)  # round to prevent errors
-        self.position = (posx, posy)
+            # Move towards the next node
+            direction_x = (xy_to[0] - self.position[0]) / remaining_distance
+            direction_y = (xy_to[1] - self.position[1]) / remaining_distance
+
+            # Calculate actual movement (don't overshoot)
+            distance_moved = min(distance_to_move, remaining_distance)
+            posx = round(self.position[0] + direction_x * distance_moved, 2)
+            posy = round(self.position[1] + direction_y * distance_moved, 2)
+            self.position = (posx, posy)
+
         self.get_heading(xy_from, xy_to)
 
         # Check if goal is reached or if to_node is reached
@@ -113,12 +119,12 @@ class Tug(object):
             if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # If the final goal is reached
                 if self.assigned_ac == None:  # If no aircraft is assigned
                     self.status = "charging"
-                elif self.position == self.assigned_ac.position:
+                elif self.position == self.assigned_ac.position and self.attached_ac==None:
                     self.status = "moving_tugging"
                     self.attach_to_ac()
                     self.assigned_ac.acknowledge_attach(self.id)
             else:  # Update the path and move to the next step
-                if self.from_to[0]!=self.from_to[1]:
+                if self.from_to[0] != self.from_to[1]:
                     self.path_to_goal = self.path_to_goal[1:]  # Remove the first step from the path
                     if self.path_to_goal:  # If there are more steps in the path
                         new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
@@ -131,9 +137,9 @@ class Tug(object):
                             new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
                             new_next_id = self.path_to_goal[0][0]  # Next step in the path
                             self.from_to = [new_from_id, new_next_id]  # Update `from_to`
-                
-        self.consume_energy(distance_to_move)
-                    
+
+        self.consume_energy(distance_moved)
+
     def consume_energy(self, distance):
         """
         Consumes energy based on the distance moved.
