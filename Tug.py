@@ -201,7 +201,7 @@ class Tug(object):
             raise Exception(f"Tug {self.id} could not find a free path to goal {self.goal}")
 
     def plan_tugging_path(self, tug_list, aircraft_list, nodes_dict, edges_dict, heuristics, current_time,
-                          max_static_block=10):
+                          max_static_block=100):
         """
         Plan a tugging path using Conflict-Based Search (CBS) for all currently tugging tugs.
         Only needs to be called once per planning instance (e.g., after attachment).
@@ -351,6 +351,8 @@ class Tug(object):
             
         elif self.status == "moving_free":
             if self.secondary_assigned_ac != None:
+                return float('inf')
+            if self.goal == ac.start:
                 return float('inf')
             # calculate the time to reach the aircraft after delivering the current one
             time_to_arrive_current = self.path_to_goal[-1][1]
