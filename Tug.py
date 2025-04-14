@@ -102,6 +102,7 @@ class Tug(object):
         else:
             x_normalized = 0
             y_normalized = 0
+            distance_to_move = 0
         posx = round(self.position[0] + x_normalized * distance_to_move, 2)  # round to prevent errors
         posy = round(self.position[1] + y_normalized * distance_to_move, 2)  # round to prevent errors
         self.position = (posx, posy)
@@ -117,11 +118,19 @@ class Tug(object):
                     self.attach_to_ac()
                     self.assigned_ac.acknowledge_attach(self.id)
             else:  # Update the path and move to the next step
-                self.path_to_goal = self.path_to_goal[1:]  # Remove the first step from the path
-                if self.path_to_goal:  # If there are more steps in the path
-                    new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
-                    new_next_id = self.path_to_goal[0][0]  # Next step in the path
-                    self.from_to = [new_from_id, new_next_id]  # Update `from_to`
+                if self.from_to[0]!=self.from_to[1]:
+                    self.path_to_goal = self.path_to_goal[1:]  # Remove the first step from the path
+                    if self.path_to_goal:  # If there are more steps in the path
+                        new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
+                        new_next_id = self.path_to_goal[0][0]  # Next step in the path
+                        self.from_to = [new_from_id, new_next_id]  # Update `from_to`
+                else:
+                    if t >= self.path_to_goal[0][1] - 1e-4:
+                        self.path_to_goal = self.path_to_goal[1:]  # Remove the first step from the path
+                        if self.path_to_goal:  # If there are more steps in the path
+                            new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
+                            new_next_id = self.path_to_goal[0][0]  # Next step in the path
+                            self.from_to = [new_from_id, new_next_id]  # Update `from_to`
                 
         self.consume_energy(distance_to_move)
                     

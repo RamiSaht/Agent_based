@@ -25,7 +25,7 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 
 #Parameters that can be changed:
 simulation_time = 100
-random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
 num_aircraft = 5 #number of aircraft to be generated
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
