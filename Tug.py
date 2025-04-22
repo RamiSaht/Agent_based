@@ -279,6 +279,7 @@ class Tug(object):
             tug.attached_ac.path = path  # optional, for syncing visualization
             if len(path) > 1:
                 tug.from_to = [path[0][0], path[1][0]]
+                
     def calculate_free_path(self, from_node, to_node, heuristics, time_start):
         """
         Calculates the path to the goal without executing it.
@@ -376,6 +377,18 @@ class Tug(object):
         
         return float('inf')
 
+    def find_closest_charging_node(self, heuristics):
+        '''finds the closest charging node to the tug'''
+        distances = {}
+        
+        for node in self.charging_nodes:
+            path = self.calculate_free_path(self.from_to[0], node, heuristics, 0)
+            distances[node] = len(path) if path else float('inf')
+        
+        closest_charging = min(distances, key=distances.get)
+        return closest_charging
+        
+    
     def __str__(self):
         return f"Tug {self.id} at {self.position} heading {self.heading} with energy {self.energy} assigned to {self.assigned_ac} with status {self.status}"
     

@@ -32,7 +32,7 @@ planner = "CBS" #choose which planner to use (currently only Independent is impl
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.1 #set at 0.1 as default
+visualization_speed = 0.01 #set at 0.1 as default
 
 #%%Function definitions
 def import_layout(nodes_file, edges_file):
@@ -352,7 +352,7 @@ while running:
                 if charging_nodes:
                     tug.assigned_ac = None #detach aircraft
                     tug.path_to_goal = [] #reset path to goal
-                    tug.goal = random.choice(charging_nodes)
+                    tug.goal = tug.find_closest_charging_node(heuristics)
                     
                     tug.plan_free_path(heuristics, t)  # Plan free path for tug
                     
