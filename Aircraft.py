@@ -59,16 +59,16 @@ class Aircraft(object):
 
         elif xy_start[1] == xy_next[1]: #moving right or left
             if xy_start[0] > xy_next[0]: #moving left
-                heading = 90
-            elif xy_start[0] < xy_next[0]: #moving right
                 heading = 270
+            elif xy_start[0] < xy_next[0]: #moving right
+                heading = 90
             else:
                 heading=self.heading
         else: 
             raise Exception("Invalid movement")
     
         self.heading = heading
-      
+
     def move(self,tugs_mode,dt,t):
         #tugs movement
         if tugs_mode==1:
@@ -86,39 +86,49 @@ class Aircraft(object):
             to_node = self.from_to[1]
             xy_from = self.nodes_dict[from_node]["xy_pos"]  # xy position of from node
             xy_to = self.nodes_dict[to_node]["xy_pos"]  # xy position of to node
-            distance_to_move = self.speed * dt  # distance to move in this timestep
 
-            # Update position with rounded values
-            x = xy_to[0] - xy_from[0]
-            y = xy_to[1] - xy_from[1]
-            if x != 0 or y != 0:
-                x_normalized = x / math.sqrt(x ** 2 + y ** 2)
-                y_normalized = y / math.sqrt(x ** 2 + y ** 2)
+            # Case 1: Waiting at a node (from_node == to_node)
+            if from_node == to_node:
+                scheduled_time = self.path_to_goal[0][1]
+                if t >= scheduled_time:  # Only proceed if time has passed
+                    self.path_to_goal = self.path_to_goal[1:]  # Remove the waiting step
+                    if self.path_to_goal:  # If path continues, update `from_to`
+                        next_node = self.path_to_goal[0][0]
+                        self.from_to = [to_node, next_node]
+            # Case 2: Moving between nodes (from_node != to_node)
             else:
-                x_normalized = 0
-                y_normalized = 0
-            posx = round(self.position[0] + x_normalized * distance_to_move, 2)  # round to prevent errors
-            posy = round(self.position[1] + y_normalized * distance_to_move, 2)  # round to prevent errors
-            self.position = (posx, posy)
-            self.get_heading(xy_from, xy_to)
+                distance_to_move = self.speed * dt  # distance to move in this timestep
 
-            # Check if goal is reached or if to_node is reached
-            if self.position == xy_to and self.path_to_goal[0][
-                1] == t + dt:  # If with this move its current to node is reached
-                if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # if the final goal is reached
-                    self.status = "arrived"
+                # Update position with rounded values
+                x = xy_to[0] - xy_from[0]
+                y = xy_to[1] - xy_from[1]
+                if x != 0 or y != 0:
+                    x_normalized = x / math.sqrt(x ** 2 + y ** 2)
+                    y_normalized = y / math.sqrt(x ** 2 + y ** 2)
+                else:
+                    x_normalized = 0
+                    y_normalized = 0
+                posx = round(self.position[0] + x_normalized * distance_to_move, 2)  # round to prevent errors
+                posy = round(self.position[1] + y_normalized * distance_to_move, 2)  # round to prevent errors
+                self.position = (posx, posy)
+                self.get_heading(xy_from, xy_to)
 
-                else:  # current to_node is reached, update the remaining path
-                    remaining_path = self.path_to_goal
-                    self.path_to_goal = remaining_path[1:]
+                # Check if goal is reached or if to_node is reached
+                if self.position == xy_to:  # If with this move its current to node is reached
+                    if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # if the final goal is reached
+                        self.status = "arrived"
 
-                    new_from_id = self.from_to[1]  # new from node
-                    new_next_id = self.path_to_goal[0][0]  # new to node
+                    else:  # current to_node is reached, update the remaining path
+                        remaining_path = self.path_to_goal
+                        self.path_to_goal = remaining_path[1:]
 
-                    if new_from_id != self.from_to[0]:
-                        self.last_node = self.from_to[0]
+                        new_from_id = self.from_to[1]  # new from node
+                        new_next_id = self.path_to_goal[0][0]  # new to node
 
-                    self.from_to = [new_from_id, new_next_id]  # update new from and to node
+                        if new_from_id != self.from_to[0]:
+                            self.last_node = self.from_to[0]
+
+                        self.from_to = [new_from_id, new_next_id]  # update new from and to node
 
     def acknowledge_attach(self, tug_id):
         """

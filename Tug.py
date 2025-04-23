@@ -76,9 +76,9 @@ class Tug(object):
 
         elif xy_start[1] == xy_next[1]: #moving right or left
             if xy_start[0] > xy_next[0]: #moving left
-                heading = 90
-            elif xy_start[0] < xy_next[0]: #moving right
                 heading = 270
+            elif xy_start[0] < xy_next[0]: #moving right
+                heading = 90
             else:
                 heading=self.heading
         else: 
@@ -117,7 +117,7 @@ class Tug(object):
         # Check if goal is reached or if to_node is reached
         if self.position == xy_to:  # If the tug has reached the `to_node`
             if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # If the final goal is reached
-                if self.assigned_ac == None:  # If no aircraft is assigned
+                if self.status=="moving_charging":  # If tug moves while charging
                     self.status = "charging"
                 elif self.position == self.assigned_ac.position and self.attached_ac==None:
                     self.status = "moving_tugging"
@@ -160,7 +160,7 @@ class Tug(object):
         INPUT:
             - ac: The aircraft to which the tug is assigned
         """
-        if self.status == "charging":
+        if self.status == "charging" or self.status == "moving_charging":
             # If currently charging, set as secondary assignment
             if self.assigned_ac is None:
                 self.assigned_ac = ac
@@ -260,7 +260,7 @@ class Tug(object):
         static_blocks = []
         for ac in aircraft_list:
             current_node = find_closest_node(ac.position,nodes_dict)
-            current_time=int(current_time)
+            current_time=round(current_time * 2) / 2
             print(ac.id,current_node)
             if ac.status == "requested" and current_node in chokepoints:
                 block_path = chokepoints[current_node]
@@ -384,17 +384,25 @@ class Tug(object):
             # calculate the time to reach the aircraft after delivering the current one
             if self.secondary_assigned_ac != None:
                 return float('inf')
+            if self.goal == ac.start: #avoid conflict generation
+                return float('inf')
             
             time_to_deliver_current = self.calculate_free_path(self.from_to[0], self.assigned_ac.goal, heuristics, bid_time)[-1][1]
             time_to_reach_ac = self.calculate_free_path(self.assigned_ac.goal, ac.start, heuristics, time_to_deliver_current)[-1][1]
             charge_needed_to_ac = self.charge_per_distance * (time_to_reach_ac - bid_time)
             
-            if self.energy - charge_needed_to_ac > self.energy_threshold:
+            if self.energy - charge_needed_to_ac > self.energy_threshold and self.assigned_ac.goal!=ac.start:
                 return time_to_reach_ac
         elif self.status == "charging" and self.assigned_ac==None:
             #calculate time left to charge
             time_to_charge = ((100-self.energy)/self.charge_speed)
             time_to_reach_ac=self.calculate_free_path(self.from_to[0],ac.start,heuristics,bid_time+time_to_charge)[-1][1]
+            return time_to_reach_ac
+        elif self.status == "moving_charging" and self.assigned_ac == None:
+            # calculate time left to charge
+            time_to_arrive_current = self.path_to_goal[-1][1]
+            time_to_charge = ((100 - self.energy) / self.charge_speed)
+            time_to_reach_ac = self.calculate_free_path(self.path_to_goal[-1][0], ac.start, heuristics, time_to_charge+time_to_arrive_current)[-1][1]
             return time_to_reach_ac
         
         return float('inf')

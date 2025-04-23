@@ -55,16 +55,18 @@ def c2m_y(y_coord, max_y, reso_y, y_range, shift=0):  # function to convert y-co
 def plot_aircraft(scr, reso, deg, x, y, x0, y0, x_range, y_range, x_shift=0, y_shift=0):
     plane_map_x = c2m_x(x, x0, reso[0], x_range, x_shift)  # convert x-coordinates to map coordinates
     plane_map_y = c2m_y(y, y0, reso[1], y_range, y_shift)  # convert y-coordinates to map coordinates
-    rectlist[deg//90].centerx = plane_map_x  # set x-location of the aircraft image
-    rectlist[deg//90].centery = plane_map_y  # set y-location of the aircraft image
-    scr.blit(piclist[deg//90], rectlist[deg//90])  # blit the aircraft image to the screen
+    rectlist[-deg//90].centerx = plane_map_x  # set x-location of the aircraft image
+    rectlist[-deg//90].centery = plane_map_y  # set y-location of the aircraft image
+    scr.blit(piclist[-deg//90], rectlist[-deg//90])  # blit the aircraft image to the screen
+# - deg used since Pycharm rotates counterclockwise while heading is calculated clockwise
 
 def plot_tug(scr, reso, deg, x, y, x0, y0, x_range, y_range, x_shift=0, y_shift=0):
     tug_map_x = c2m_x(x, x0, reso[0], x_range, x_shift)  # convert x-coordinates to map coordinates
     tug_map_y = c2m_y(y, y0, reso[1], y_range, y_shift)  # convert y-coordinates to map coordinates
-    rectlist_tugs[deg//90].centerx = tug_map_x  # set x-location of the tug image
-    rectlist_tugs[deg//90].centery = tug_map_y  # set y-location of the tug image
-    scr.blit(piclist_tugs[deg//90], rectlist_tugs[deg//90])  # blit the tug image to the screen
+    rectlist_tugs[-deg//90].centerx = tug_map_x  # set x-location of the tug image
+    rectlist_tugs[-deg//90].centery = tug_map_y  # set y-location of the tug image
+    scr.blit(piclist_tugs[-deg//90], rectlist_tugs[-deg//90])  # blit the tug image to the screen\
+    # - deg used since Pycharm rotates counterclockwise while heading is calculated clockwise
 
 def plot_line(scr, color_code, reso, radius, coord_1, coord_2, x0, y0, x_range, y_range, x_shift=0, y_shift=0):
     wp_map_x_1 = c2m_x(coord_1[0], x0, reso[0], x_range, x_shift)  # get x-pixel of source

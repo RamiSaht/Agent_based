@@ -25,9 +25,9 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 
 #Parameters that can be changed:
 simulation_time = 100
-random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
-num_aircraft = 5 #number of aircraft to be generated
+num_aircraft = 8 #number of aircraft to be generated
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
@@ -377,6 +377,16 @@ while running:
                         max_static_block=100
                     )
                     break  # Only one call is needed since the method handles all tugging tugs
+        for tug in tugs_lst:
+            if tug.status in ["ready"] and tug.energy < 70: #so tugs don't get stuck away from other aircraft
+                # Make sure it isn't on charging node
+                current_node = find_closest_node(tug.position, nodes_dict)
+                if nodes_dict[current_node]["type"] != "charging":
+                    tug.assigned_ac = None
+                    tug.goal = random.choice(charging_nodes)
+                    tug.status = "low_energy"
+                    tug.path_to_goal = []
+                    tug.plan_free_path(heuristics, t)
 
         for ac in active_aircrafts:
             if ac.status == "attached":
