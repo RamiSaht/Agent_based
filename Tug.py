@@ -261,15 +261,12 @@ class Tug(object):
         for ac in aircraft_list:
             current_node = find_closest_node(ac.position,nodes_dict)
             current_time=round(current_time * 2) / 2
-            print(ac.id,current_node)
             if ac.status == "requested" and current_node in chokepoints:
                 block_path = chokepoints[current_node]
-                print(block_path)
                 for node in block_path:
                     static_blocks.append((node, current_time, current_time + max_static_block))
             elif ac.status == "requested":
                 static_blocks.append((current_node, current_time, current_time + max_static_block))
-        print(static_blocks,current_time)
         # --- 3. Run CBS ---
         from cbs import CBSSolver  # ensure CBSSolver is imported correctly
         cbs_solver = CBSSolver(graph, nodes_dict, starts, goals, current_time, heuristics,
@@ -285,12 +282,12 @@ class Tug(object):
 
         # --- 4. Assign paths back to tugs and aircraft ---
         for tug, path in zip(moving_tugs, paths):
-            print(path)
             tug.path_to_goal = path
             tug.status = "moving_tugging"
             tug.attached_ac.path = path  # optional, for syncing visualization
             if len(path) > 1:
                 tug.from_to = [path[0][0], path[1][0]]
+    
     def calculate_free_path(self, from_node, to_node, heuristics, time_start):
         """
         Calculates the path to the goal without executing it.
@@ -384,7 +381,7 @@ class Tug(object):
             # calculate the time to reach the aircraft after delivering the current one
             if self.secondary_assigned_ac != None:
                 return float('inf')
-            if self.goal == ac.start: #avoid conflict generation
+            if self.assigned_ac.goal == ac.start: #avoid conflict generation
                 return float('inf')
             
             time_to_deliver_current = self.calculate_free_path(self.from_to[0], self.assigned_ac.goal, heuristics, bid_time)[-1][1]
@@ -407,6 +404,17 @@ class Tug(object):
         
         return float('inf')
 
+    def find_closest_charging_node(self, heuristics):
+        '''finds the closest charging node to the tug'''
+        distances = {}
+        
+        for node in self.charging_nodes:
+            path = self.calculate_free_path(self.from_to[0], node, heuristics, 0)
+            distances[node] = len(path) if path else float('inf')
+        
+        closest_charging = min(distances, key=distances.get)
+        return closest_charging
+    
     def __str__(self):
         return f"Tug {self.id} at {self.position} heading {self.heading} with energy {self.energy} assigned to {self.assigned_ac} with status {self.status}"
     
