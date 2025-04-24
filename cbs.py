@@ -182,7 +182,6 @@ def run_CBS(graph, aircraft_lst, nodes_dict, edges_dict, heuristics, t, starts, 
         if ac.status == "taxiing":
             # Update position to the closest node in the new path
             ac.position = nodes_dict[path[0][0]]["xy_pos"]
-    print(paths)
 
 def run_cbs_for_attached_tugs(tug_list, aircraft_list, nodes_dict, edges_dict, heuristics, t, max_static_block=10):
     import networkx as nx

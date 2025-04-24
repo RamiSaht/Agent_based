@@ -15,6 +15,7 @@ from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
 from Tug import Tug
+import random
 
 #%% SET SIMULATION PARAMETERS
 #Input file names (used in import_layout) -> Do not change those unless you want to specify a new layout.
@@ -23,11 +24,18 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 
 #Parameters that can be changed:
 simulation_time = 100
+random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
+num_aircraft = 8 #number of aircraft to be generated
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
 visualization_speed = 0.05 #set at 0.1 as default
+
+# Don't change
+last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation
+num_spawned_aircraft = 0 #number of aircraft spawned in random generation
 
 #%%Function definitions
 def import_layout(nodes_file, edges_file):
@@ -163,29 +171,69 @@ def find_closest_node(position, nodes_dict):
             closest_node = node_id
     return closest_node
 
-def parse_tugs(file_path, nodes_dict):
+
+def continuous_random_generation(t):
+    '''
+    Generates aircraft at constant intervals until the maximum number of aircraft is reached.
+    Aircraft are generated at random gates and runways.
+    The logic takes into account the availability of gates and runways.
+    '''
+    global last_aircraft_spawn, num_spawned_aircraft
+    # Test if it's time to generate a new aircraft
+    random_generation_interval = random_generation_time // num_aircraft
+    num_simulated_aircraft = len(aircraft_lst)
+    active_aircrafts = [ac for ac in aircraft_lst if ac.status != "done"]
     
-    df = pd.read_csv(file_path)
-    lst = []
-    
-    for i, row in df.iterrows():
-        if row.starting_node not in nodes_dict.keys():
-            raise Exception("Error: Start node of tug does not exist in nodes_dict")
-        lst.append(Tug(row.tug_id, row.starting_node, row.starting_energy, nodes_dict))
-    
-    return lst
+
+    if  num_spawned_aircraft < num_aircraft and t - last_aircraft_spawn >= random_generation_interval:
+        occupied_gates = [ac.start for ac in active_aircrafts if ac.type == "D"]
+        occupied_rwy_arrs = [ac.start for ac in active_aircrafts if ac.type == "A"]
+        available_gates = [gate for gate in gates if gate not in occupied_gates]
+        available_rwy_arrs = [rwy for rwy in rwy_arrs if rwy not in occupied_rwy_arrs]
+        choice = random.choice(aircraft_type_choices)
+        spawn_time_l =  t
+        
+        goal_gates = set()
+        for ac in active_aircrafts:
+            if ac.type == "A":
+                goal_gates.add(ac.goal)
+        
+        if choice == "A" and available_rwy_arrs:
+            start_node = random.choice(available_rwy_arrs)
+            goal_node = random.choice(gates)
+        elif choice == "D" and available_gates:
+            departure_gates = [gate for gate in available_gates if gate not in goal_gates]
+            if not departure_gates:
+                return
+            start_node = random.choice(departure_gates)
+            goal_node = random.choice(rwy_deps)
+        else:
+            return
+        
+        ac = Aircraft(f'A{num_simulated_aircraft}', choice, start_node, goal_node, spawn_time_l, nodes_dict)
+        last_aircraft_spawn = spawn_time_l
+        num_spawned_aircraft += 1
+        aircraft_lst.append(ac)
+        spawn_times.append(spawn_time_l)
+        print(f"Aircraft {ac.id} generated at time {t} with start node {start_node} and goal node {goal_node}")
+    return
 #%% RUN SIMULATION
 # =============================================================================
 # 0. Initialization
 # =============================================================================
 nodes_dict, edges_dict, start_and_goal_locations = import_layout(nodes_file, edges_file)
+gates = [node for node in nodes_dict if nodes_dict[node]["type"] == "gate"]
+rwy_deps = [node for node in nodes_dict if nodes_dict[node]["type"] == "rwy_d"]
+rwy_arrs = [node for node in nodes_dict if nodes_dict[node]["type"] == "rwy_a"]
+charging_nodes = [node for node in nodes_dict if nodes_dict[node]["type"] == "charging"]
+aircraft_type_choices = ["A", "D"]
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
-aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)   #List which can contain aircraft agents
-tugs_lst = parse_tugs("tugs.csv", nodes_dict) #List which can contain tug agents
-print(f'aircraft_lst: {aircraft_lst}')
-print(f'tugs_lst: {[tug.id for tug in tugs_lst]}')
-print('spawn_times', spawn_times)
+if random_schedule:
+    aircraft_lst, spawn_times = [], [] #List which can contain aircraft agents
+else:
+    aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
+tugs_lst = []
 
 if visualization:
     map_properties = map_initialization(nodes_dict, edges_dict) #visualization properties
@@ -200,12 +248,14 @@ escape_pressed = False
 time_end = simulation_time if simulation_time else 999999
 dt = 0.1 #should be factor of 0.5 (0.5/dt should be integer)
 t= 0
+collisions=[]
 tugs_mode=0
 
 print("Simulation Started")
 while running:
+    continuous_random_generation(t) if random_schedule else None 
     t= round(t,2)    
-       
+    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
     #Check conditions for termination
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
         running = False
@@ -216,19 +266,22 @@ while running:
     #Visualization: Update map if visualization is true
     if visualization:
         current_aircrafts = {} #Collect current states of all aircraft
-        for ac in aircraft_lst:
-            if ac.status == "taxiing":
-                current_aircrafts[ac.id] = {"ac_id": ac.id,
-                                         "xy_pos": ac.position,
-                                         "heading": ac.heading,
-                                            "status": ac.status}
+        for ac in active_aircrafts:
+            current_aircrafts[ac.id] = {"ac_id": ac.id,
+                                        "xy_pos": ac.position,
+                                        "heading": ac.heading,
+                                        "status": ac.status}
         
         current_tugs = {} #Collect current states of all tugs
         for tug in tugs_lst:
             current_tugs[tug.id] = {"tug_id": tug.id,
                                          "xy_pos": tug.position,
-                                         "heading": tug.heading}
-        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt,collisions=[],tugs=tugs_mode)
+                                         "heading": tug.heading,
+                                         "status": tug.status,
+                                         "energy": tug.energy,
+                                         "assigned_ac": tug.assigned_ac.id if tug.assigned_ac else None,
+                                         "secondary_ac": tug.secondary_assigned_ac.id if tug.secondary_assigned_ac else None}
+        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions,tugs=1)
         timer.sleep(visualization_speed) 
       
         

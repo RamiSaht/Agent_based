@@ -43,8 +43,6 @@ def build_constraint_table(constraints, agent):
     # Organize constraints by type and agent
     for constraint in constraints:
         if constraint['agent'] == agent:
-            # print(constraint['agent'], agent)
-            # print(constraint['positive'])
             if constraint['positive']==True:  # Positive constraints apply to all agents
                 if constraint['agent'] == agent:
                     positive.append(constraint)
@@ -69,7 +67,6 @@ def build_constraint_table(constraints, agent):
                     constraint_table[timestep].append({'loc': constraint['loc'], 'positive': False})
                 else:  # Edge constraint
                     constraint_table[timestep].append({'loc': constraint['loc'], 'positive': False})
-    # print(constraint_table)
     return constraint_table
 
 def is_constrained(curr_loc, next_loc, next_time, constraint_table):
@@ -157,7 +154,6 @@ def is_constrained(curr_loc, next_loc, next_time, constraint_table):
 #                 closed_list[(child['loc'], child['timestep'])] = child
 #                 push_node(open_list, child)
 #
-#     print("No path found, " + str(len(closed_list)) + " nodes visited")
 #     return False, []
 
 

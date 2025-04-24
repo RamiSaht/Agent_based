@@ -116,7 +116,7 @@ class Aircraft(object):
                 # Check if goal is reached or if to_node is reached
                 if self.position == xy_to:  # If with this move its current to node is reached
                     if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # if the final goal is reached
-                        self.status = "arrived"
+                        self.status = "done"
 
                     else:  # current to_node is reached, update the remaining path
                         remaining_path = self.path_to_goal

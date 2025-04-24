@@ -220,7 +220,7 @@ def continuous_random_generation(t):
     # Test if it's time to generate a new aircraft
     random_generation_interval = random_generation_time // num_aircraft
     num_simulated_aircraft = len(aircraft_lst)
-    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
+    active_aircrafts = [ac for ac in aircraft_lst if ac.status != "done"]
     
 
     if  num_spawned_aircraft < num_aircraft and t - last_aircraft_spawn >= random_generation_interval:
