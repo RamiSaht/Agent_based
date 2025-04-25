@@ -24,9 +24,9 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 100
+simulation_time = 150
 random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
-random_generation_time = 75 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
+random_generation_time = 100 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
 num_aircraft = 10 #numbecr of aircraft to be generated
 if os.path.exists("run_config.py"):
     exec(open("run_config.py").read())
@@ -35,7 +35,7 @@ planner = "CBS" #choose which planner to use (currently only Independent is impl
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.01 #set at 0.1 as default
+visualization_speed = 0.005 #set at 0.1 as default
 
 # Don't change
 last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation

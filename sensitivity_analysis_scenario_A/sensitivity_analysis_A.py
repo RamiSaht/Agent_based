@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 
 # Parameters to vary
 num_aircraft_range = [5, 10, 15]  # Number of aircraft to simulate
-repetitions = 10  # Number of runs per aircraft count/simulation
+repetitions = 100  # Number of runs per aircraft count/simulation
+sim_time = 75              # Simulation time (seconds)
+gen_time = 50               # Aircraft generation window (seconds)
 
 # Directory to store all outputs
 log_dir = "sensitivity_analysis_scenario_A"
@@ -25,8 +27,8 @@ for num_aircraft in num_aircraft_range:
         with open("run_config.py", "w") as f:
             f.write(f"random_schedule = True\n")
             f.write(f"num_aircraft = {num_aircraft}\n")
-            f.write(f"random_generation_time = 80\n")
-            f.write(f"simulation_time = 120\n")
+            f.write(f"random_generation_time = {gen_time}\n")
+            f.write(f"simulation_time = {sim_time}\n")
 
         # Run the simulation (this assumes run_me.py is in the same folder)
         subprocess.run(["python", "run_me.py"], check=True)

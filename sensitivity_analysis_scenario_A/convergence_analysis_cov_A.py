@@ -8,7 +8,7 @@ from scipy import stats
 
 # === CONFIGURATION ===
 N = 200                     # Max number of runs
-min_runs = 20              # Minimum runs before checking convergence
+min_runs = 0              # Minimum runs before checking convergence
 target_cov = 0.02           # Target Coefficient of Variation threshold
 stable_steps = 3            # Stop if CoV varies <2% for this many checks
 step_size = 5               # Analyze every N runs
@@ -70,13 +70,13 @@ for run_id in range(1, N+1):
             "cov": cov
         })
 
-        # Early termination if CoV stabilizes
-        if len(cov_data) > stable_steps:
-            last_covs = [d["cov"] for d in cov_data[-stable_steps:]]
-            cov_change = np.abs(np.diff(last_covs)).max()
-            if cov_change < 0.01 * target_cov:
-                print(f"Converged at {run_id} runs (CoV change <1%).")
-                break
+        # # Early termination if CoV stabilizes
+        # if len(cov_data) > stable_steps:
+        #     last_covs = [d["cov"] for d in cov_data[-stable_steps:]]
+        #     cov_change = np.abs(np.diff(last_covs)).max()
+        #     if cov_change < 0.01 * target_cov:
+        #         print(f"Converged at {run_id} runs (CoV change <1%).")
+        #         break
 
 # Save convergence metrics
 cov_df = pd.DataFrame(cov_data)
