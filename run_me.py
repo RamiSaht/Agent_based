@@ -10,7 +10,7 @@ import time as timer
 import pygame as pg
 from single_agent_planner import calc_heuristics
 from visualization import map_initialization, map_running
-from Aircraft import Aircraft
+from Aircraft import Aircraft, find_closest_node
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
@@ -157,19 +157,6 @@ def parse_schedule(file_path, nodes_dict):
     spawn_times = df.t.unique()
     return aircraft_lst, spawn_times
 
-def find_closest_node(position, nodes_dict):
-    """
-    Find the closest node to a given (x, y) position.
-    """
-    min_distance = float('inf')
-    closest_node = None
-    for node_id, node_data in nodes_dict.items():
-        node_pos = node_data["xy_pos"]
-        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
-        if distance < min_distance:
-            min_distance = distance
-            closest_node = node_id
-    return closest_node
 
 def continuous_random_generation(t):
     '''
@@ -324,3 +311,6 @@ while running:
 # 2. Implement analysis of output data here
 # =============================================================================
 #what data do you want to show?
+#ac visited node
+for ac in aircraft_lst:
+    print(ac.visited_nodes)

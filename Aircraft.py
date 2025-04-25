@@ -1,6 +1,20 @@
 from single_agent_planner import simple_single_agent_astar
 import math
 
+def find_closest_node(position, nodes_dict):
+    """
+    Find the closest node to a given (x, y) position.
+    """
+    min_distance = float('inf')
+    closest_node = None
+    for node_id, node_data in nodes_dict.items():
+        node_pos = node_data["xy_pos"]
+        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            closest_node = node_id
+    return closest_node
+
 class Aircraft(object):
     """Aircraft class, should be used in the creation of new aircraft."""
 
@@ -38,6 +52,9 @@ class Aircraft(object):
         #State related
         self.heading = 0
         self.position = self.nodes_dict[start_node]["xy_pos"] #xy position on map
+
+        #Travelled path
+        self.visited_nodes = [self.start]  # start with the initial node
 
     def get_heading(self, xy_start, xy_next):
         """
@@ -129,6 +146,11 @@ class Aircraft(object):
                             self.last_node = self.from_to[0]
 
                         self.from_to = [new_from_id, new_next_id]  # update new from and to node
+        #After movement is performed, add the closest node to memorise it
+        closest_node = find_closest_node(self.position, self.nodes_dict)
+        if closest_node != self.visited_nodes[-1]:
+            self.visited_nodes.append(closest_node)
+
 
     def acknowledge_attach(self, tug_id):
         """
