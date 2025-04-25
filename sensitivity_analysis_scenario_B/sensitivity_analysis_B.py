@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # Parameters to vary
 num_aircraft_range = [5, 10, 15]  # Number of aircraft to simulate
-repetitions = 10  # Number of runs per aircraft count/simulation
+repetitions = 100  # Number of runs per aircraft count/simulation
 
 # Directory to store all outputs
 log_dir = "sensitivity_analysis_scenario_B"

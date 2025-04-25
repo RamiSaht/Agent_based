@@ -34,7 +34,7 @@ planner = "CBS" #choose which planner to use (currently only Independent is impl
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.01 #set at 0.1 as default
+visualization_speed = 0.005 #set at 0.1 as default
 
 # Don't change
 last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation

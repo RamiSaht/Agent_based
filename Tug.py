@@ -27,7 +27,7 @@ class Tug(object):
             
         """
          #Fixed parameters
-        self.speed = 1         #how much a/c moves per unit of t
+        self.speed = 1         #how much tug moves per unit of t
         self.charge_per_distance = 2 #how much percent is consumed per distance unit
         self.energy_threshold = 50 #energy threshold to start charging
         self.charge_speed = 5 #how much percent is charged per unit of t
