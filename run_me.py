@@ -26,12 +26,12 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 simulation_time = 100
 random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
-num_aircraft = 8 #number of aircraft to be generated
+num_aircraft = 15 #number of aircraft to be generated
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.05 #set at 0.1 as default
+visualization_speed = 0.01 #set at 0.1 as default
 
 # Don't change
 last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation
@@ -171,7 +171,6 @@ def find_closest_node(position, nodes_dict):
             closest_node = node_id
     return closest_node
 
-
 def continuous_random_generation(t):
     '''
     Generates aircraft at constant intervals until the maximum number of aircraft is reached.
@@ -253,8 +252,8 @@ tugs_mode=0
 
 print("Simulation Started")
 while running:
-    continuous_random_generation(t) if random_schedule else None 
     t= round(t,2)    
+    continuous_random_generation(t) if random_schedule else None 
     active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
     #Check conditions for termination
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
