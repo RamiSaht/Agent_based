@@ -177,7 +177,16 @@ def run_CBS(graph, aircraft_lst, nodes_dict, edges_dict, heuristics, t, starts, 
     active_aircraft = [ac for ac in aircraft_lst if ac.status != "done"]
     for ac, path in zip(active_aircraft, paths):
         ac.path_to_goal = path[1:]  # Remove the first node (current position)
-        ac.from_to = [path[0][0], path[1][0]]  # Set from_node and to_node
+        
+        if path is None or len(path) < 2: #######-
+            print(f"[CBS FAIL] Path for aircraft {ac.id} is too short or None at time {t}. Path: {path}")
+            print(f"           Start: {starts[0]} Goal: {goals[0]}")
+            print(f"           Raw path: {path}") 
+            ac_status = "done" # Mark AC inactive to prevent crashing
+            return None
+        else:
+            ac.from_to = [path[0][0], path[1][0]]  # Set from_node and to_node ########-
+
         ac.status = "taxiing"
         if ac.status == "taxiing":
             # Update position to the closest node in the new path

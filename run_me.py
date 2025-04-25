@@ -10,7 +10,7 @@ import time as timer
 import pygame as pg
 from single_agent_planner import calc_heuristics
 from visualization import map_initialization, map_running
-from Aircraft import Aircraft, find_closest_node
+from Aircraft import Aircraft
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
@@ -26,7 +26,10 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 simulation_time = 100
 random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
-num_aircraft = 15 #number of aircraft to be generated
+num_aircraft = 8 #number of aircraft to be generated
+if os.path.exists("run_config.py"): ###### sensitivity analysis
+    exec(open("run_config.py").read()) ###### sensitivity analysis
+
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
@@ -157,6 +160,32 @@ def parse_schedule(file_path, nodes_dict):
     spawn_times = df.t.unique()
     return aircraft_lst, spawn_times
 
+def find_closest_node(position, nodes_dict):
+    """
+    Find the closest node to a given (x, y) position.
+    """
+    min_distance = float('inf')
+    closest_node = None
+    for node_id, node_data in nodes_dict.items():
+        node_pos = node_data["xy_pos"]
+        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            closest_node = node_id
+    return closest_node
+
+def parse_tugs(file_path, nodes_dict):
+    
+    df = pd.read_csv(file_path)
+    lst = []
+    
+    for i, row in df.iterrows():
+        if row.starting_node not in nodes_dict.keys():
+            raise Exception("Error: Start node of tug does not exist in nodes_dict")
+        lst.append(Tug(row.tug_id, row.starting_node, row.starting_energy, nodes_dict))
+    
+    return lst
+
 
 def continuous_random_generation(t):
     '''
@@ -213,13 +242,18 @@ rwy_deps = [node for node in nodes_dict if nodes_dict[node]["type"] == "rwy_d"]
 rwy_arrs = [node for node in nodes_dict if nodes_dict[node]["type"] == "rwy_a"]
 charging_nodes = [node for node in nodes_dict if nodes_dict[node]["type"] == "charging"]
 aircraft_type_choices = ["A", "D"]
+
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
 if random_schedule:
     aircraft_lst, spawn_times = [], [] #List which can contain aircraft agents
 else:
-    aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
-tugs_lst = []
+    aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)  #List which can contain aircraft agents
+
+tugs_lst = parse_tugs("tugs.csv", nodes_dict) #List which can contain tug agents
+print(f'aircraft_lst: {aircraft_lst}')
+print(f'tugs_lst: {[tug.id for tug in tugs_lst]}')
+print('spawn_times', spawn_times)
 
 if visualization:
     map_properties = map_initialization(nodes_dict, edges_dict) #visualization properties
@@ -234,14 +268,15 @@ escape_pressed = False
 time_end = simulation_time if simulation_time else 999999
 dt = 0.1 #should be factor of 0.5 (0.5/dt should be integer)
 t= 0
-collisions=[]
 tugs_mode=0
 
 print("Simulation Started")
-while running:
-    t= round(t,2)    
-    continuous_random_generation(t) if random_schedule else None 
-    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
+while running:    
+    t= round(t,2)
+    continuous_random_generation(t) if random_schedule else None #generate random aircraft if random_schedule is true
+    # aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
+    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]   
+       
     #Check conditions for termination
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
         running = False
@@ -252,22 +287,19 @@ while running:
     #Visualization: Update map if visualization is true
     if visualization:
         current_aircrafts = {} #Collect current states of all aircraft
-        for ac in active_aircrafts:
-            current_aircrafts[ac.id] = {"ac_id": ac.id,
-                                        "xy_pos": ac.position,
-                                        "heading": ac.heading,
-                                        "status": ac.status}
+        for ac in aircraft_lst:
+            if ac.status == "taxiing":
+                current_aircrafts[ac.id] = {"ac_id": ac.id,
+                                         "xy_pos": ac.position,
+                                         "heading": ac.heading,
+                                            "status": ac.status}
         
         current_tugs = {} #Collect current states of all tugs
         for tug in tugs_lst:
             current_tugs[tug.id] = {"tug_id": tug.id,
                                          "xy_pos": tug.position,
-                                         "heading": tug.heading,
-                                         "status": tug.status,
-                                         "energy": tug.energy,
-                                         "assigned_ac": tug.assigned_ac.id if tug.assigned_ac else None,
-                                         "secondary_ac": tug.secondary_assigned_ac.id if tug.secondary_assigned_ac else None}
-        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt, collisions,tugs=1)
+                                         "heading": tug.heading}
+        escape_pressed = map_running(map_properties, current_aircrafts, current_tugs, t, dt,collisions=[],tugs=tugs_mode)
         timer.sleep(visualization_speed) 
       
         
@@ -311,6 +343,23 @@ while running:
 # 2. Implement analysis of output data here
 # =============================================================================
 #what data do you want to show?
-#ac visited node
+
+results = []
 for ac in aircraft_lst:
-    print(ac.visited_nodes)
+    if ac.start_time is not None:  # Ensure aircraft was spawned
+        entry = {
+            "aircraft_id": ac.id,
+            "start_time": ac.start_time,
+            "end_time": round(ac.end_time, 2),
+            "time_to_destination": ac.get_time_to_destination() if ac.get_time_to_destination() is not None else "FAILED",
+            "moving_time": round(ac.moving_time, 2) if hasattr(ac, "moving_time") else "N/A",
+            "idle_time": round(ac.idle_time, 2) if hasattr(ac, "idle_time") else "N/A",
+            "status": "planned" if ac.end_time is not None else "failed"
+        }
+        results.append(entry)
+
+
+# Save to CSV
+results_df = pd.DataFrame(results)
+results_df.to_csv("output_time_to_destination_scenario_A.csv", index=False)
+print("Time-to-destination data saved to: output_time_to_destination_scenario_A.csv")

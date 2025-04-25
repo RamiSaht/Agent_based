@@ -1,20 +1,6 @@
 from single_agent_planner import simple_single_agent_astar
 import math
 
-def find_closest_node(position, nodes_dict):
-    """
-    Find the closest node to a given (x, y) position.
-    """
-    min_distance = float('inf')
-    closest_node = None
-    for node_id, node_data in nodes_dict.items():
-        node_pos = node_data["xy_pos"]
-        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
-        if distance < min_distance:
-            min_distance = distance
-            closest_node = node_id
-    return closest_node
-
 class Aircraft(object):
     """Aircraft class, should be used in the creation of new aircraft."""
 
@@ -39,6 +25,8 @@ class Aircraft(object):
         self.goal = goal_node     #goal_node_id
         self.nodes_dict = nodes_dict #keep copy of nodes dict
         # self.nodes_dict = nodes_dict #keep copy of nodes dict
+        self.start_time = None ########### 
+        self.end_time = None ##############
         tugs_modes=1
         #Route related
         if tugs_modes==1:
@@ -55,6 +43,10 @@ class Aircraft(object):
 
         #Travelled path
         self.visited_nodes = [self.start]  # start with the initial node
+
+        self.moving_time = 0 ##############- 
+        self.idle_time = 0
+        self.last_position = self.position #######-
 
     def get_heading(self, xy_start, xy_next):
         """
@@ -86,71 +78,81 @@ class Aircraft(object):
     
         self.heading = heading
 
-    def move(self,tugs_mode,dt,t):
-        #tugs movement
-        if tugs_mode==1:
-            #Update position with rounded values
-            if self.status == 'attached' and self.assigned_tug != None:
+    def move(self, tugs_mode, dt, t):
+        # Tugs movement
+        if tugs_mode == 1:
+            if self.status == 'attached' and self.assigned_tug is not None:
                 if self.position == self.nodes_dict[self.goal]["xy_pos"]:
-                    self.detach_tug() #detach the tug
+                    self.detach_tug(t)
                     self.status = "done"
+                    if self.end_time is None:  # Track end time
+                        self.end_time = t + dt
                     return
-                self.move_with_tug() #move with the tug
-        #no tugs movement
+                self.move_with_tug()
+
+                if self.position != self.last_position:
+                    self.moving_time += dt
+                else:
+                    self.idle_time += dt
+                self.last_position = self.position
+
+        # No tugs movement
         else:
-            # Determine nodes between which the ac is moving
+            if self.start_time is None:
+                self.start_time = t
+
             from_node = self.from_to[0]
             to_node = self.from_to[1]
-            xy_from = self.nodes_dict[from_node]["xy_pos"]  # xy position of from node
-            xy_to = self.nodes_dict[to_node]["xy_pos"]  # xy position of to node
+            xy_from = self.nodes_dict[from_node]["xy_pos"]
+            xy_to = self.nodes_dict[to_node]["xy_pos"]
 
-            # Case 1: Waiting at a node (from_node == to_node)
+            # Case 1: Waiting at a node
             if from_node == to_node:
                 scheduled_time = self.path_to_goal[0][1]
-                if t >= scheduled_time:  # Only proceed if time has passed
-                    self.path_to_goal = self.path_to_goal[1:]  # Remove the waiting step
-                    if self.path_to_goal:  # If path continues, update `from_to`
+                if t >= scheduled_time:
+                    self.path_to_goal = self.path_to_goal[1:]
+                    if self.path_to_goal:
                         next_node = self.path_to_goal[0][0]
                         self.from_to = [to_node, next_node]
-            # Case 2: Moving between nodes (from_node != to_node)
-            else:
-                distance_to_move = self.speed * dt  # distance to move in this timestep
 
-                # Update position with rounded values
+            # Case 2: Moving between nodes
+            else:
+                distance_to_move = self.speed * dt
                 x = xy_to[0] - xy_from[0]
                 y = xy_to[1] - xy_from[1]
                 if x != 0 or y != 0:
-                    x_normalized = x / math.sqrt(x ** 2 + y ** 2)
-                    y_normalized = y / math.sqrt(x ** 2 + y ** 2)
+                    x_normalized = x / math.sqrt(x**2 + y**2)
+                    y_normalized = y / math.sqrt(x**2 + y**2)
                 else:
                     x_normalized = 0
                     y_normalized = 0
-                posx = round(self.position[0] + x_normalized * distance_to_move, 2)  # round to prevent errors
-                posy = round(self.position[1] + y_normalized * distance_to_move, 2)  # round to prevent errors
+
+                posx = round(self.position[0] + x_normalized * distance_to_move, 2)
+                posy = round(self.position[1] + y_normalized * distance_to_move, 2)
                 self.position = (posx, posy)
                 self.get_heading(xy_from, xy_to)
 
-                # Check if goal is reached or if to_node is reached
-                if self.position == xy_to:  # If with this move its current to node is reached
-                    if self.position == self.nodes_dict[self.goal]["xy_pos"]:  # if the final goal is reached
+                # Track movement time
+                if self.position != self.last_position:
+                    self.moving_time += dt
+                else:
+                    self.idle_time += dt
+                self.last_position = self.position
+
+                # Check if goal is reached
+                if self.position == xy_to:
+                    if self.position == self.nodes_dict[self.goal]["xy_pos"]:
                         self.status = "done"
-
-                    else:  # current to_node is reached, update the remaining path
-                        remaining_path = self.path_to_goal
-                        self.path_to_goal = remaining_path[1:]
-
-                        new_from_id = self.from_to[1]  # new from node
-                        new_next_id = self.path_to_goal[0][0]  # new to node
-
+                        if self.end_time is None:  # Critical for output analysis
+                            self.end_time = t + dt
+                    else:
+                        remaining_path = self.path_to_goal[1:]
+                        self.path_to_goal = remaining_path
+                        new_from_id = self.from_to[1]
+                        new_next_id = self.path_to_goal[0][0] if self.path_to_goal else new_from_id
                         if new_from_id != self.from_to[0]:
                             self.last_node = self.from_to[0]
-
-                        self.from_to = [new_from_id, new_next_id]  # update new from and to node
-        #After movement is performed, add the closest node to memorise it
-        closest_node = find_closest_node(self.position, self.nodes_dict)
-        if closest_node != self.visited_nodes[-1]:
-            self.visited_nodes.append(closest_node)
-
+                        self.from_to = [new_from_id, new_next_id]
 
     def acknowledge_attach(self, tug_id):
         """
@@ -181,13 +183,15 @@ class Aircraft(object):
             self.assigned_tug = tug
             self.status = 'requested'
      
-    def detach_tug(self):
+    def detach_tug(self, t): ###### t
         """
         Detaches the aircraft from the tug.
         """
         if self.status == "attached":
+            if self.end_time is None: ############# 
+                self.end_time = t ############# 
             self.assigned_tug.position = self.position #update the position of the tug
-            self.assigned_tug.detach_ac(self.id)
+            self.assigned_tug.detach_ac(self.id, t) ###### t
             self.assigned_tug = None
             self.status = 'done'
              
@@ -196,3 +200,8 @@ class Aircraft(object):
     
     def __repr__(self):
         return self.__str__()
+    
+    def get_time_to_destination(self): #########-
+        if self.end_time is not None:
+            return round(self.end_time - self.spawntime, 2)
+        return None #####-

@@ -11,7 +11,7 @@ import time as timer
 import pygame as pg
 from single_agent_planner import calc_heuristics
 from visualization import map_initialization, map_running
-from Aircraft import Aircraft,find_closest_node
+from Aircraft import Aircraft
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
@@ -26,8 +26,11 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 #Parameters that can be changed:
 simulation_time = 100
 random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
-random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
-num_aircraft = 8 #number of aircraft to be generated
+random_generation_time = 75 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
+num_aircraft = 10 #numbecr of aircraft to be generated
+if os.path.exists("run_config.py"):
+    exec(open("run_config.py").read())
+
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
@@ -158,7 +161,19 @@ def parse_schedule(file_path, nodes_dict):
     spawn_times = df.t.unique()
     return aircraft_lst, spawn_times
 
-
+def find_closest_node(position, nodes_dict):
+    """
+    Find the closest node to a given (x, y) position.
+    """
+    min_distance = float('inf')
+    closest_node = None
+    for node_id, node_data in nodes_dict.items():
+        node_pos = node_data["xy_pos"]
+        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            closest_node = node_id
+    return closest_node
 
 def parse_tugs(file_path, nodes_dict):
     
@@ -190,11 +205,14 @@ def assign_tug_to_aircraft(aircraft_to_assign_l, available_tugs_l, t_l):
     if bids[min_bid_tug_id] == float('inf'):
         return False
     
+    print(f"For aircraft {aircraft_to_assign_l.id}, bids are: \n{bids}")
     # Assign the tug to the aircraft
     for tug in available_tugs_l:
         if tug.id == min_bid_tug_id:
+            print(f"Assigning tug {tug.id} to aircraft {aircraft_to_assign_l.id}")
             tug.assign_ac(aircraft_to_assign_l)
             aircraft_to_assign_l.assign_tug(tug)
+    
     
     return True
 
@@ -208,7 +226,7 @@ def continuous_random_generation(t):
     # Test if it's time to generate a new aircraft
     random_generation_interval = random_generation_time // num_aircraft
     num_simulated_aircraft = len(aircraft_lst)
-    active_aircrafts = [ac for ac in aircraft_lst if ac.status != "done"]
+    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
     
 
     if  num_spawned_aircraft < num_aircraft and t - last_aircraft_spawn >= random_generation_interval:
@@ -245,6 +263,34 @@ def continuous_random_generation(t):
     
         
     return
+
+
+    # # Test if it's time to generate a new aircraft
+    
+    # random_generation_interval = random_generation_time // num_aircraft
+    # num_simulated_aircraft = len(aircraft_lst)
+    
+    # if t < random_generation_time and random_generation_interval * num_simulated_aircraft <= t:
+    #     occupied_gates = [ac.start for ac in aircraft_lst if ac.type == "D"]
+    #     occupied_rwy_arrs = [ac.start for ac in aircraft_lst if ac.type == "A"]
+    #     available_gates = [gate for gate in gates if gate not in occupied_gates]
+    #     available_rwy_arrs = [rwy for rwy in rwy_arrs if rwy not in occupied_rwy_arrs]
+    #     choice = random.choice(aircraft_type_choices)
+    #     spawn_time_l =  t
+    #     if choice == "A" and available_rwy_arrs:
+    #         start_node = random.choice(available_rwy_arrs)
+    #         goal_node = random.choice(gates)
+    #     elif choice == "D" and available_gates:
+    #         start_node = random.choice(available_gates)
+    #         goal_node = random.choice(rwy_deps)
+    #     else:
+    #         return
+        
+    #     ac = Aircraft(f'A{num_simulated_aircraft}', choice, start_node, goal_node, spawn_time_l, nodes_dict)
+    #     aircraft_lst.append(ac)
+    #     spawn_times.append(spawn_time_l)
+    #     print(f"Aircraft {ac.id} generated at time {t} with start node {start_node} and goal node {goal_node}")
+    # return
     
     
     
@@ -354,6 +400,7 @@ while running:
                     current_location=find_closest_node(tug.position,nodes_dict)
                     if current_location==tug.assigned_ac.start:
                         # This tug just started tugging this timestep
+                        print(f"Done at timestep {t}")
                         new_tugging_started = True
             if 'moving' in tug.status:
                 tug.move(dt, t)
@@ -362,7 +409,7 @@ while running:
                 if charging_nodes:
                     tug.assigned_ac = None #detach aircraft
                     tug.path_to_goal = [] #reset path to goal
-                    tug.goal = tug.find_closest_charging_node(heuristics)
+                    tug.goal = random.choice(charging_nodes)
                     
                     tug.plan_free_path(heuristics, t)  # Plan free path for tug
                     
@@ -381,16 +428,6 @@ while running:
                         max_static_block=100
                     )
                     break  # Only one call is needed since the method handles all tugging tugs
-        for tug in tugs_lst:
-            if tug.status in ["ready"] and tug.energy < 70: #so tugs don't get stuck away from other aircraft
-                # Make sure it isn't on charging node
-                current_node = find_closest_node(tug.position, nodes_dict)
-                if nodes_dict[current_node]["type"] != "charging":
-                    tug.assigned_ac = None
-                    tug.goal = tug.find_closest_charging_node(heuristics)
-                    tug.status = "low_energy"
-                    tug.path_to_goal = []
-                    tug.plan_free_path(heuristics, t)
 
         for ac in active_aircrafts:
             if ac.status == "attached":
@@ -402,3 +439,42 @@ while running:
 # 2. Implement analysis of output data here
 # =============================================================================
 #what data do you want to show?
+
+# Aircraft timing
+ac_results = []
+for ac in aircraft_lst:
+    time_to_dest = ac.get_time_to_destination()
+    if time_to_dest is not None:
+        ac_results.append({
+            "aircraft_id": ac.id,
+            "start_time": ac.spawntime,
+            "end_time": ac.end_time,
+            "time_to_destination": time_to_dest
+        })
+pd.DataFrame(ac_results).to_csv("aircraft_time_to_destination_scenario_B.csv", index=False)
+print("Aircraft time-to-destination data saved to: aircraft_time_to_destination_scenario_B.csv")
+
+# Tug operation summary (with aircraft assignments)
+tug_results = []
+for tug in tugs_lst:
+    for i, entry in enumerate(tug.assignment_log):
+        tug_results.append({
+            "aircraft_id": entry["aircraft_id"],
+            "tug_id": tug.id,
+            "operation_index": i,
+            "start_time_tug_operation": round(entry["start_time"], 2),
+            "end_time_tug_operation": round(entry["end_time"], 2),
+            "duration_tug_operation": round(entry["duration"], 2),
+            "moving_time_during_tug_operation": round(entry["moving_time"], 2),
+            "idle_time_during_tug_operation": round(entry["idle_time"], 2),
+            "charging_time": round(tug.charging_time, 2)
+        })
+
+tug_results = sorted(tug_results, key=lambda x: x["aircraft_id"])
+
+if tug_results:
+    pd.DataFrame(tug_results).to_csv("tug_operations_scenario_B.csv", index=False)
+    print("Tug operations with aircraft assignments saved to: tug_operations_scenario_B.csv")
+else:
+    print("No tug operations were recorded.")
+

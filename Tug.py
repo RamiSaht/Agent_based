@@ -52,7 +52,13 @@ class Tug(object):
         #State related
         self.heading = 0
         self.position = nodes_dict[start_node]["xy_pos"] #xy position on map
+        self.moving_time = 0 ############## -
+        self.idle_time = 0
+        self.last_position = self.position #########-
         self.energy = starting_energy #energy of the tug
+        self.operation_start_time = None ############# 
+        self.assignment_log = [] #to track aircraft assignments ############### 
+        self.charging_time = 0 ###### time spent charging
         if starting_energy < self.energy_threshold:
             self.status = "low_energy"
         
@@ -140,6 +146,12 @@ class Tug(object):
 
         self.consume_energy(distance_moved)
 
+        if self.position != self.last_position: #####-
+            self.moving_time += dt
+        else:
+            self.idle_time += dt
+        self.last_position = self.position #####-
+
     def consume_energy(self, distance):
         """
         Consumes energy based on the distance moved.
@@ -171,6 +183,7 @@ class Tug(object):
             self.status = "assigned"
             self.goal = ac.start  # Set goal to the aircraft's start node
             self.path_to_goal = []  # Clear any existing path
+            self.operation_start_time = None #############
         elif self.assigned_ac is not None and self.secondary_assigned_ac is None:
             self.secondary_assigned_ac = ac
         else:
@@ -205,6 +218,8 @@ class Tug(object):
         if success:
             self.path_to_goal = path
             self.from_to = [self.from_to[1], path[0][0]]
+            if self.operation_start_time is None and self.assigned_ac:######
+                self.operation_start_time = time_start######
             if self.status == "low_energy":
                 self.status = "moving_charging"
             else:
@@ -301,12 +316,29 @@ class Tug(object):
         else:
             return None  # No path found
             
-    def detach_ac(self, ac_id):
+    def detach_ac(self, ac_id, t): ##### ,t 
         """
         Detaches the tug from an aircraft.
         INPUT:
             - ac_id: id of the aircraft to which the tug is detached
         """
+        if self.operation_start_time is not None: ###########-
+            self.assignment_log.append({
+                "aircraft_id": ac_id,
+                "start_time": self.operation_start_time,
+                "end_time": t,
+                "duration": round(t - self.operation_start_time, 2),
+                "moving_time": round(self.moving_time, 2),
+                "idle_time": round(self.idle_time, 2),
+                "charging_time": round(self.charging_time, 2)
+            })  
+
+            self.operation_start_time = None
+            self.operation_end_time = None
+            self.moving_time = 0
+            self.idle_time = 0
+            self.charging_time = 0 ##############-
+        
         if self.assigned_ac != None and self.attached_ac != None:
             self.attached_ac = None
             self.path_to_goal = []
@@ -338,6 +370,8 @@ class Tug(object):
             - dt: time step
         """
         self.energy = min(self.energy + self.charge_speed * dt, 100)  # Ensure energy doesn't exceed 100%
+        self.charging_time += dt ##########
+        
         if self.energy >= 100:
             if self.assigned_ac==None:
                 self.status = "ready"
