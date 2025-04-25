@@ -1,6 +1,20 @@
 from single_agent_planner import simple_single_agent_astar
 import math
 
+def find_closest_node(position, nodes_dict):
+    """
+    Find the closest node to a given (x, y) position.
+    """
+    min_distance = float('inf')
+    closest_node = None
+    for node_id, node_data in nodes_dict.items():
+        node_pos = node_data["xy_pos"]
+        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            closest_node = node_id
+    return closest_node
+
 class Aircraft(object):
     """Aircraft class, should be used in the creation of new aircraft."""
 
@@ -47,6 +61,13 @@ class Aircraft(object):
         self.moving_time = 0 ##############- 
         self.idle_time = 0
         self.last_position = self.position #######-
+        self.closest_node = find_closest_node(self.position,self.nodes_dict)
+        self.visited_nodes = [self.start]  # start with the initial node
+        self.total_distance = 0.0
+
+        self.node_total_times = {}
+        self.node_dwell_times = {}  # {node_id: total_time_spent}
+        self._current_node_start_time = None  # internal tracking
 
     def get_heading(self, xy_start, xy_next):
         """
@@ -79,6 +100,14 @@ class Aircraft(object):
         self.heading = heading
 
     def move(self, tugs_mode, dt, t):
+        #Add time spent on node
+        self.node_total_times[self.closest_node] = self.node_total_times.get(self.closest_node, 0) + dt  # Add node time to total time list
+
+        #Make sure current node is part of path
+        self.closest_node = find_closest_node(self.position, self.nodes_dict)
+        if self.closest_node != self.visited_nodes[-1]:
+            self.visited_nodes.append(self.closest_node)
+
         # Tugs movement
         if tugs_mode == 1:
             if self.status == 'attached' and self.assigned_tug is not None:
@@ -90,10 +119,13 @@ class Aircraft(object):
                     return
                 self.move_with_tug()
 
+
                 if self.position != self.last_position:
                     self.moving_time += dt
+                    self.total_distance+= math.sqrt((self.position[0]-self.last_position[0])**2+(self.position[1]-self.last_position[1])**2)
                 else:
                     self.idle_time += dt
+                    self.node_dwell_times[self.closest_node] = self.node_dwell_times.get(self.closest_node,0) + dt  # Add node waiting time to list
                 self.last_position = self.position
 
         # No tugs movement
@@ -108,8 +140,16 @@ class Aircraft(object):
 
             # Case 1: Waiting at a node
             if from_node == to_node:
+                #Account for time start of the node
+                if self._current_node_start_time is None:
+                    self._current_node_start_time = t  # start waiting time
                 scheduled_time = self.path_to_goal[0][1]
                 if t >= scheduled_time:
+                    time_spent = t + dt - self._current_node_start_time #Calculate time spent on the node
+                    self.node_dwell_times[from_node] = self.node_dwell_times.get(from_node, 0) + time_spent #Add node time to list
+                    self._current_node_start_time = None  # reset for next node
+
+                    #Change node goal
                     self.path_to_goal = self.path_to_goal[1:]
                     if self.path_to_goal:
                         next_node = self.path_to_goal[0][0]
@@ -127,8 +167,16 @@ class Aircraft(object):
                     x_normalized = 0
                     y_normalized = 0
 
+                #Determine new position
                 posx = round(self.position[0] + x_normalized * distance_to_move, 2)
                 posy = round(self.position[1] + y_normalized * distance_to_move, 2)
+
+                #Calculate distance moved
+                dx = posx - self.position[0]
+                dy = posy - self.position[1]
+                self.total_distance += math.sqrt(dx ** 2 + dy ** 2)
+
+                #Actualise state
                 self.position = (posx, posy)
                 self.get_heading(xy_from, xy_to)
 
@@ -153,6 +201,7 @@ class Aircraft(object):
                         if new_from_id != self.from_to[0]:
                             self.last_node = self.from_to[0]
                         self.from_to = [new_from_id, new_next_id]
+
 
     def acknowledge_attach(self, tug_id):
         """

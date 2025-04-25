@@ -28,8 +28,8 @@ class Tug(object):
         """
          #Fixed parameters
         self.speed = 1         #how much tug moves per unit of t
-        self.charge_per_distance = 2 #how much percent is consumed per distance unit
-        self.energy_threshold = 50 #energy threshold to start charging
+        self.charge_per_distance = 1 #how much percent is consumed per distance unit
+        self.energy_threshold = 30 #energy threshold to consider bid (charging forced at 10% higher to make sure tugs aren't blocked off)
         self.charge_speed = 5 #how much percent is charged per unit of t
         self.id = tug_id       #flight_id
         self.start = start_node   #start_node_id
@@ -59,7 +59,7 @@ class Tug(object):
         self.operation_start_time = None ############# 
         self.assignment_log = [] #to track aircraft assignments ############### 
         self.charging_time = 0 ###### time spent charging
-        if starting_energy < self.energy_threshold:
+        if starting_energy < self.energy_threshold+20:
             self.status = "low_energy"
         
     def get_heading(self, xy_start, xy_next):
@@ -131,6 +131,7 @@ class Tug(object):
                     self.assigned_ac.acknowledge_attach(self.id)
             else:  # Update the path and move to the next step
                 if self.from_to[0] != self.from_to[1]:
+                    self.last_node =self.from_to[1]
                     self.path_to_goal = self.path_to_goal[1:]  # Remove the first step from the path
                     if self.path_to_goal:  # If there are more steps in the path
                         new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
@@ -252,7 +253,8 @@ class Tug(object):
         for tug in tug_list:
             if tug.attached_ac:
                 ac = tug.attached_ac
-                start_node = find_closest_node(tug.position, nodes_dict)
+                current_location = find_closest_node(tug.position,nodes_dict)
+                start_node = current_location
                 goal_node = ac.goal
                 starts.append(start_node)
                 goals.append(goal_node)
@@ -354,7 +356,7 @@ class Tug(object):
             self.status = 'assigned'
             self.goal = self.assigned_ac.start
             
-        if self.energy < self.energy_threshold:
+        if self.energy < self.energy_threshold + 20 and self.assigned_ac==None: #Make sure tugs don't stay blocked (can actually bid)
             # go to charging station
             self.status = "low_energy"
             self.attached_ac = None

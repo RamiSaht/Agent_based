@@ -2,6 +2,10 @@ import heapq
 from single_agent_planner import simple_single_agent_astar
 
 
+def euclidean_distance(pos1, pos2):
+    x1, y1 = pos1
+    x2, y2 = pos2
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 def detect_collision(path1, path2):
     t_1_start=path1[0][1]
@@ -100,6 +104,7 @@ class CBSSolver:
                         'timestep': timestep
                     })
                 timestep = round(timestep + 0.5, 2)
+
 
         for i in range(self.num_of_agents):
             path = simple_single_agent_astar(self.nodes_dict, self.starts[i], self.goals[i], self.heuristics, start_time,

@@ -10,7 +10,7 @@ import time as timer
 import pygame as pg
 from single_agent_planner import calc_heuristics
 from visualization import map_initialization, map_running
-from Aircraft import Aircraft
+from Aircraft import Aircraft,find_closest_node
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
@@ -160,20 +160,6 @@ def parse_schedule(file_path, nodes_dict):
     spawn_times = df.t.unique()
     return aircraft_lst, spawn_times
 
-def find_closest_node(position, nodes_dict):
-    """
-    Find the closest node to a given (x, y) position.
-    """
-    min_distance = float('inf')
-    closest_node = None
-    for node_id, node_data in nodes_dict.items():
-        node_pos = node_data["xy_pos"]
-        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
-        if distance < min_distance:
-            min_distance = distance
-            closest_node = node_id
-    return closest_node
-
 def parse_tugs(file_path, nodes_dict):
     
     df = pd.read_csv(file_path)
@@ -262,6 +248,12 @@ if visualization:
 # 1. While loop and visualization
 # =============================================================================
 
+#First create dictionaries for all data required for simulation
+time_per_node_all = {}
+idle_time_per_node_all = {}
+location_tracking = {}
+
+
 #Start of while loop    
 running=True
 escape_pressed = False
@@ -344,8 +336,23 @@ while running:
 # =============================================================================
 #what data do you want to show?
 
+total_node_times_all_aircraft = {}
+total_dwell_times_all_aircraft = {}
+#Location of an agent at a given timestep can be determined with ac.closest_node.
 results = []
 for ac in aircraft_lst:
+    #get rid of rounding errors
+    rounded_total_times = {node: round(time, 2) for node, time in ac.node_total_times.items()}
+    rounded_dwell_times = {node: round(time, 2) for node, time in ac.node_dwell_times.items()}
+
+    # Calculate total time for each node
+    for node, time in rounded_total_times.items():
+        total_node_times_all_aircraft[node] = total_node_times_all_aircraft.get(node, 0) + time
+
+    #Calculate total waiting time for each node
+    for node, time in rounded_dwell_times.items():
+        total_dwell_times_all_aircraft[node] = total_dwell_times_all_aircraft.get(node, 0) + time
+
     if ac.start_time is not None:  # Ensure aircraft was spawned
         entry = {
             "aircraft_id": ac.id,
@@ -354,10 +361,16 @@ for ac in aircraft_lst:
             "time_to_destination": ac.get_time_to_destination() if ac.get_time_to_destination() is not None else "FAILED",
             "moving_time": round(ac.moving_time, 2) if hasattr(ac, "moving_time") else "N/A",
             "idle_time": round(ac.idle_time, 2) if hasattr(ac, "idle_time") else "N/A",
-            "status": "planned" if ac.end_time is not None else "failed"
+            "status": "planned" if ac.end_time is not None else "failed",
+            "path": ac.visited_nodes,
+            "total_time_on_node": rounded_total_times,
+            "time_waiting_node": rounded_dwell_times,
+            "travelled distance": round(ac.total_distance)
         }
         results.append(entry)
 
+print(total_node_times_all_aircraft) #Time spent on each node can be taken from here
+print(total_dwell_times_all_aircraft) #Time waited on each node can be taken from here
 
 # Save to CSV
 results_df = pd.DataFrame(results)
