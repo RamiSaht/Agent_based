@@ -262,7 +262,7 @@ class Tug(object):
                 goal_node = ac.goal
                 starts.append(start_node)
                 goals.append(goal_node)
-                agent_id = len(goals)  # Index in active_aircrafts
+                agent_id = len(goals)-1  # Index in active_aircrafts
                 moving_tugs.append(tug)
                 last_node = tug.assigned_ac.last_surely_visited_node
 
@@ -315,7 +315,7 @@ class Tug(object):
             if len(path) > 1:
                 tug.from_to = [path[0][0], path[1][0]]
             tug.path_to_goal = tug.path_to_goal[1:] # Make sure that we don't read the first transit node twice
-
+        print(static_blocks, personal_obstacles)
     
     def calculate_free_path(self, from_node, to_node, heuristics, time_start):
         """
