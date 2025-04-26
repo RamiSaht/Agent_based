@@ -252,9 +252,10 @@ class Tug(object):
                 graph.add_edge(edge[0], edge[1], weight=weight)
 
         # --- 1. Collect moving tugs and their goals ---
-        starts, goals, moving_tugs = [], [], []
+        starts, goals, moving_tugs,personal_obstacles = [], [], [], []
 
-        for tug in tug_list:
+        for idx, tug in enumerate(tug_list):
+            print(f"Tug index: {idx}, Tug: {tug}")
             if tug.attached_ac:
                 ac = tug.attached_ac
                 current_location = find_closest_node(tug.position,nodes_dict)
@@ -262,7 +263,11 @@ class Tug(object):
                 goal_node = ac.goal
                 starts.append(start_node)
                 goals.append(goal_node)
+                agent_id = idx  # Index in active_aircrafts
                 moving_tugs.append(tug)
+                last_node = tug.assigned_ac.last_surely_visited_node
+                if last_node != ac.start:  # make sure only for nodes not representing starting points
+                    personal_obstacles.append((last_node, current_time, current_time + 100, agent_id))
 
         # --- 2. Temporarily static aircraft (waiting for tug) ---
         # add chokepoints for static blocking (10 seconds)
@@ -293,7 +298,7 @@ class Tug(object):
         # --- 3. Run CBS ---
         from cbs import CBSSolver  # ensure CBSSolver is imported correctly
         cbs_solver = CBSSolver(graph, nodes_dict, starts, goals, current_time, heuristics,
-                               static_obstacles=static_blocks)
+                               static_obstacles=static_blocks,personal_obstacles=personal_obstacles)
 
 
         try:

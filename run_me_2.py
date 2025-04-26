@@ -294,6 +294,7 @@ available_tugs = [] #list of available tugs
 print("Simulation Started")
 
 while running:
+    done = 0
     t= round(t,2)
     continuous_random_generation(t) if random_schedule else None #generate random aircraft if random_schedule is true
     # aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
@@ -395,6 +396,11 @@ while running:
         for ac in active_aircrafts:
             if ac.status == "attached":
                 ac.move(tugs_mode=1,dt=dt,t=t)
+
+        if num_spawned_aircraft == num_aircraft and len(active_aircrafts) == 0:
+            done = 1
+        if done == 1:
+            running = False
         
     t = t + dt
           
