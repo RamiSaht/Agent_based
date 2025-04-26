@@ -7,10 +7,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Parameters to vary
-num_aircraft_range = [6, 8, 10]  # Number of aircraft to simulate
-repetitions = 5  # Number of runs per aircraft count/simulation
-sim_time = 100              # Simulation time (seconds)
+num_aircraft_range = [6, 8, 10, 12]  # Number of aircraft to simulate
+repetitions = 100  # Number of runs per aircraft count/simulation
+sim_time = 150              # Simulation time (seconds)
 gen_time = 50               # Aircraft generation window (seconds)
+file_name_tug_number = "tug=3" ##### change for every tug run, changes CSV file name
 
 # Directory to store all outputs
 log_dir = "sensitivity_analysis_scenario_B"
@@ -46,7 +47,7 @@ for num_aircraft in num_aircraft_range:
 
 # Combine all and save
 results_df = pd.concat(all_results, ignore_index=True)
-results_df.to_csv(f"{log_dir}/combined_results_B_tug#=6.csv", index=False) ############ manually change tug number
+results_df.to_csv(f"{log_dir}/combined_results_B_{file_name_tug_number}.csv", index=False) ############ manually change tug number
 
 print("\n Sensitivity analysis complete. Results saved to:", f"{log_dir}/combined_results_B.csv")
 
