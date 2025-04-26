@@ -283,8 +283,6 @@ class Tug(object):
         }
 
         static_blocks = []
-        if current_time>=self.attachment_time+1:
-            static_blocks.append((self.last_node,current_time,current_time+max_static_block))
         for ac in aircraft_list:
             current_node = find_closest_node(ac.position,nodes_dict)
             current_time=round(current_time * 2) / 2
