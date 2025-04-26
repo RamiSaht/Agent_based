@@ -23,8 +23,8 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 100
-random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+simulation_time = 200
+random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
 num_aircraft = 8 #number of aircraft to be generated
 if os.path.exists("run_config.py"): ###### sensitivity analysis
@@ -34,7 +34,7 @@ planner = "CBS" #choose which planner to use (currently only Independent is impl
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.01 #set at 0.1 as default
+visualization_speed = 0.00000001 #set at 0.1 as default
 
 # Don't change
 last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation
@@ -255,19 +255,19 @@ location_tracking = {}
 
 
 #Start of while loop    
-running=True
+running = True
 escape_pressed = False
 time_end = simulation_time if simulation_time else 999999
 dt = 0.1 #should be factor of 0.5 (0.5/dt should be integer)
 t= 0
 tugs_mode=0
 print("Simulation Started")
-while running:    
+while running:
+    done=0
     t= round(t,2)
     continuous_random_generation(t) if random_schedule else None #generate random aircraft if random_schedule is true
     # aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
-    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]   
-       
+    active_aircrafts = [ac for ac in aircraft_lst if (ac.spawntime <= t and ac.status != "done")]
     #Check conditions for termination
     if t >= time_end or escape_pressed or pg.event.get(pg.QUIT): 
         running = False
@@ -334,7 +334,12 @@ while running:
         if ac.status == "taxiing":
             # Aircraft moves with assigned tug
             ac.move(tugs_mode,dt,t)
-                           
+
+    if num_spawned_aircraft == num_aircraft and len(active_aircrafts) == 0:
+        done = 1
+
+    if done == 1 :
+        running =False
     t = t + dt
           
 # =============================================================================
@@ -359,6 +364,7 @@ for ac in aircraft_lst:
     for node, time in rounded_dwell_times.items():
         total_dwell_times_all_aircraft[node] = total_dwell_times_all_aircraft.get(node, 0) + time
 
+    print(ac.start_time, ac.end_time)
     if ac.start_time is not None:  # Ensure aircraft was spawned
         entry = {
             "aircraft_id": ac.id,
