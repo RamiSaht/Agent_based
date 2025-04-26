@@ -255,7 +255,6 @@ class Tug(object):
         starts, goals, moving_tugs,personal_obstacles = [], [], [], []
 
         for idx, tug in enumerate(tug_list):
-            print(f"Tug index: {idx}, Tug: {tug}")
             if tug.attached_ac:
                 ac = tug.attached_ac
                 current_location = find_closest_node(tug.position,nodes_dict)
@@ -263,12 +262,12 @@ class Tug(object):
                 goal_node = ac.goal
                 starts.append(start_node)
                 goals.append(goal_node)
-                agent_id = idx  # Index in active_aircrafts
+                agent_id = len(goals)  # Index in active_aircrafts
                 moving_tugs.append(tug)
                 last_node = tug.assigned_ac.last_surely_visited_node
+
                 if last_node != ac.start:  # make sure only for nodes not representing starting points
                     personal_obstacles.append((last_node, current_time, current_time + 100, agent_id))
-
         # --- 2. Temporarily static aircraft (waiting for tug) ---
         # add chokepoints for static blocking (10 seconds)
         chokepoints = {
@@ -303,7 +302,6 @@ class Tug(object):
 
         try:
             paths = cbs_solver.find_solution()
-
         except Exception as e:
             print(f"[CBS ERROR] Failed to find tugging paths: {e}")
             return
@@ -311,6 +309,7 @@ class Tug(object):
         # --- 4. Assign paths back to tugs and aircraft ---
         for tug, path in zip(moving_tugs, paths):
             tug.path_to_goal = path
+            print(tug.id,tug.path_to_goal)
             tug.status = "moving_tugging"
             tug.attached_ac.path = path  # optional, for syncing visualization
             if len(path) > 1:

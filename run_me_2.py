@@ -28,9 +28,10 @@ simulation_time = 100
 random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 print(random_schedule)
 random_generation_time = 75 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
-num_aircraft = 10 #numbecr of aircraft to be generated
+num_aircraft = 15 #numbecr of aircraft to be generated
 if os.path.exists("run_config.py"):
     exec(open("run_config.py").read())
+# random_schedule = False
 
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
@@ -269,7 +270,7 @@ aircraft_type_choices = ["A", "D"]
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
 #Something wrong with random schedule declaration, had to declare it here
-random_schedule=True
+# random_schedule=False
 if random_schedule:
     aircraft_lst, spawn_times = [], [] #List which can contain aircraft agents
 else:
@@ -293,7 +294,6 @@ collisions=[]
 aircraft_queue = [] #queue of aircraft that are waiting for a tug
 available_tugs = [] #list of available tugs
 print("Simulation Started")
-
 while running:
     done = 0
     t= round(t,2)
