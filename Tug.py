@@ -116,7 +116,6 @@ class Tug(object):
         # If we're very close to the node, just snap to it
         if remaining_distance < 0.01:
             self.position = xy_to
-            distance_moved = remaining_distance
 
         self.get_heading(xy_from, xy_to)
 
