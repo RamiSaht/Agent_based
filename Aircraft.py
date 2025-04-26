@@ -63,6 +63,7 @@ class Aircraft(object):
         self.last_position = self.position #######-
         self.closest_node = find_closest_node(self.position,self.nodes_dict)
         self.visited_nodes = [self.start]  # start with the initial node
+        self.last_surely_visited_node = self.start
         self.total_distance = 0.0
 
         self.node_total_times = {}
@@ -107,6 +108,8 @@ class Aircraft(object):
         self.closest_node = find_closest_node(self.position, self.nodes_dict)
         if self.closest_node != self.visited_nodes[-1]:
             self.visited_nodes.append(self.closest_node)
+        if self.position == self.nodes_dict[self.closest_node]["xy_pos"]:
+            self.last_surely_visited_node = self.closest_node
 
         # Tugs movement
         if tugs_mode == 1:

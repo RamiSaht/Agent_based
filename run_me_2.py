@@ -25,7 +25,8 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 
 #Parameters that can be changed:
 simulation_time = 100
-random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+print(random_schedule)
 random_generation_time = 75 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
 num_aircraft = 10 #numbecr of aircraft to be generated
 if os.path.exists("run_config.py"):
@@ -267,13 +268,14 @@ aircraft_type_choices = ["A", "D"]
 
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
+#Something wrong with random schedule declaration, had to declare it here
+random_schedule=True
 if random_schedule:
     aircraft_lst, spawn_times = [], [] #List which can contain aircraft agents
 else:
     aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
     
 tugs_lst = parse_tugs("tugs.csv", nodes_dict) #List which can contain tug agents
-
 if visualization:
     map_properties = map_initialization(nodes_dict, edges_dict) #visualization properties
 
@@ -291,6 +293,7 @@ collisions=[]
 aircraft_queue = [] #queue of aircraft that are waiting for a tug
 available_tugs = [] #list of available tugs
 print("Simulation Started")
+
 while running:
     t= round(t,2)
     continuous_random_generation(t) if random_schedule else None #generate random aircraft if random_schedule is true
@@ -342,7 +345,30 @@ while running:
             ac_to_assign = aircraft_queue.pop(0)  # Get the first aircraft in the queue
             assign_tug_to_aircraft(ac_to_assign, available_tugs, t)
 
+        #Check if tugs where attached this turn
         new_tugging_started=False
+        for tug in tugs_lst:
+            if tug.status == "moving_tugging":
+                if not tug.path_to_goal:
+                    current_location = find_closest_node(tug.position, nodes_dict)
+                    if current_location == tug.assigned_ac.start and t % 0.5 == 0:
+                        # This tug just started tugging this timestep
+                        print(f"Done at timestep {t}")
+                        new_tugging_started = True
+        #Plan paths in case of new tugging
+        if new_tugging_started or t in spawn_times:
+            for tug in tugs_lst:
+                if tug.status == "moving_tugging":
+                    tug.plan_tugging_path(
+                        tug_list=tugs_lst,
+                        aircraft_list=active_aircrafts,
+                        nodes_dict=nodes_dict,
+                        edges_dict=edges_dict,
+                        heuristics=heuristics,
+                        current_time=t,
+                        max_static_block=100
+                    )
+                    break  # Only one call is needed since the method handles all tugging tugs
         
         for tug in tugs_lst: ## Check if tug is available
             if tug.status == "assigned":
@@ -354,14 +380,6 @@ while running:
                 if tug.path_to_goal == []:
                     tug.goal = tug.assigned_ac.start  # Set goal to the aircraft's start node
                     tug.plan_free_path(heuristics, t)  # Plan free path for tug
-
-            if tug.status == "moving_tugging":
-                if not tug.path_to_goal:
-                    current_location=find_closest_node(tug.position,nodes_dict)
-                    if current_location==tug.assigned_ac.start and t%0.5==0:
-                        # This tug just started tugging this timestep
-                        print(f"Done at timestep {t}")
-                        new_tugging_started = True
             if 'moving' in tug.status:
                 tug.move(dt, t)
             current_location=find_closest_node(tug.position,nodes_dict)
@@ -375,24 +393,6 @@ while running:
                     
             if tug.status == "charging":
                 tug.charge(dt)
-        if new_tugging_started or t in spawn_times:
-            for tug in tugs_lst:
-                if tug.status == "moving_tugging":
-                    tug.plan_tugging_path(
-                        tug_list=tugs_lst,
-                        aircraft_list=active_aircrafts,
-                        nodes_dict=nodes_dict,
-                        edges_dict=edges_dict,
-                        heuristics=heuristics,
-                        current_time=t,
-                        max_static_block=100
-                    )
-                    current_location = find_closest_node(tug.position, nodes_dict)
-                    if current_location == tug.assigned_ac.start:
-                        tug.move(dt,t)
-                    print(tug.path_to_goal)
-                    break  # Only one call is needed since the method handles all tugging tugs
-
         for ac in active_aircrafts:
             if ac.status == "attached":
                 ac.move(tugs_mode=1,dt=dt,t=t)

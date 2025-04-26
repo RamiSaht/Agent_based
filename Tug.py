@@ -99,15 +99,10 @@ class Tug(object):
         xy_from = self.nodes_dict[from_node]["xy_pos"]  # xy position of from node
         xy_to = self.nodes_dict[to_node]["xy_pos"]  # xy position of to node
         distance_to_move = self.speed * dt  # distance to move in this timestep
-
         # Calculate the remaining distance to the next node
-        remaining_distance = math.sqrt((xy_to[0] - self.position[0]) ** 2 + (xy_to[1] - self.position[1]) ** 2)
-
-        # If we're very close to the node, just snap to it
-        if remaining_distance < 0.01:
-            self.position = xy_to
-            distance_moved = remaining_distance
-        else:
+        remaining_distance = round(math.sqrt((xy_to[0] - self.position[0]) ** 2 + (xy_to[1] - self.position[1]) ** 2),2)
+        #Make sure no divisions by 0 happen
+        if remaining_distance!=0:
             # Move towards the next node
             direction_x = (xy_to[0] - self.position[0]) / remaining_distance
             direction_y = (xy_to[1] - self.position[1]) / remaining_distance
@@ -117,6 +112,11 @@ class Tug(object):
             posx = round(self.position[0] + direction_x * distance_moved, 2)
             posy = round(self.position[1] + direction_y * distance_moved, 2)
             self.position = (posx, posy)
+            remaining_distance = round(math.sqrt((xy_to[0] - self.position[0]) ** 2 + (xy_to[1] - self.position[1]) ** 2),2)
+        # If we're very close to the node, just snap to it
+        if remaining_distance < 0.01:
+            self.position = xy_to
+            distance_moved = remaining_distance
 
         self.get_heading(xy_from, xy_to)
 
@@ -127,8 +127,11 @@ class Tug(object):
                     self.status = "charging"
                 elif self.position == self.assigned_ac.position and self.attached_ac==None:
                     self.status = "moving_tugging"
-                    self.attach_to_ac()
+                    self.attach_to_ac(t+dt)
                     self.assigned_ac.acknowledge_attach(self.id)
+                elif self.position == self.assigned_ac.goal:
+                    self.assigned_ac.end_time = t #if aircraft reached goal (since ac moves with tug, mark it as done)
+                    self.assigned_ac.status = "done"
             else:  # Update the path and move to the next step
                 if self.from_to[0] != self.from_to[1]:
                     self.last_node =self.from_to[1]
@@ -138,7 +141,7 @@ class Tug(object):
                         new_next_id = self.path_to_goal[0][0]  # Next step in the path
                         self.from_to = [new_from_id, new_next_id]  # Update `from_to`
                 else:
-                    if t >= self.path_to_goal[0][1] - 1e-4:
+                    if t >= self.path_to_goal[0][1] - 0.1:
                         self.path_to_goal = self.path_to_goal[1:]  # Remove the first step from the path
                         if self.path_to_goal:  # If there are more steps in the path
                             new_from_id = self.from_to[1]  # Current `to_node` becomes the new `from_node`
@@ -191,12 +194,13 @@ class Tug(object):
             # can't be assigned
             raise Exception(f"Tug {self.id} cannot be assigned to aircraft {ac.id} as it is already assigned to another aircraft.")
             
-    def attach_to_ac(self):
+    def attach_to_ac(self,t):
         """
         Attaches the tug to an aircraft.
         INPUT:
             - ac_id: id of the aircraft to which the tug is attached
         """
+        self.attachment_time=t
         if self.assigned_ac != None and self.attached_ac == None:
             self.attached_ac = self.assigned_ac
             self.path_to_goal = []  # Clear the path to goal
@@ -212,7 +216,7 @@ class Tug(object):
         if self.assigned_ac != None:
             if self.position == self.assigned_ac.position:
                 self.status = "moving_tugging"
-                self.attach_to_ac()
+                self.attach_to_ac(time_start)
                 self.assigned_ac.acknowledge_attach(self.id)
                 return
         success, path = simple_single_agent_astar(self.nodes_dict, self.from_to[0], self.goal, heuristics, time_start, [], f"tug{self.id}")
@@ -275,6 +279,8 @@ class Tug(object):
         }
 
         static_blocks = []
+        if current_time>=self.attachment_time+1:
+            static_blocks.append((self.last_node,current_time,current_time+max_static_block))
         for ac in aircraft_list:
             current_node = find_closest_node(ac.position,nodes_dict)
             current_time=round(current_time * 2) / 2
@@ -304,6 +310,8 @@ class Tug(object):
             tug.attached_ac.path = path  # optional, for syncing visualization
             if len(path) > 1:
                 tug.from_to = [path[0][0], path[1][0]]
+            tug.path_to_goal = tug.path_to_goal[1:] # Make sure that we don't read the first transit node twice
+
     
     def calculate_free_path(self, from_node, to_node, heuristics, time_start):
         """
