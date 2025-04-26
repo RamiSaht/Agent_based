@@ -1,4 +1,4 @@
 random_schedule = True
-num_aircraft = 10
+num_aircraft = 12
 random_generation_time = 50
-simulation_time = 100
+simulation_time = 150
