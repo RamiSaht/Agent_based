@@ -24,10 +24,10 @@ nodes_file = "nodes.xlsx" #xlsx file with for each node: id, x_pos, y_pos, type
 edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node), length
 
 #Parameters that can be changed:
-simulation_time = 150
+simulation_time = 100
 random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
-random_generation_time = 100 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
-num_aircraft = 10 #numbecr of aircraft to be generated
+random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
+num_aircraft = 12 #numbecr of aircraft to be generated
 if os.path.exists("run_config.py"):
     exec(open("run_config.py").read())
 
