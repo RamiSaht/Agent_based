@@ -11,7 +11,7 @@ import time as timer
 import pygame as pg
 from single_agent_planner import calc_heuristics
 from visualization import map_initialization, map_running
-from Aircraft import Aircraft
+from Aircraft import Aircraft,find_closest_node
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
@@ -25,9 +25,10 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 
 #Parameters that can be changed:
 simulation_time = 100
-random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
-random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
-num_aircraft = 12 #numbecr of aircraft to be generated
+random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+print(random_schedule)
+random_generation_time = 75 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
+num_aircraft = 10 #numbecr of aircraft to be generated
 if os.path.exists("run_config.py"):
     exec(open("run_config.py").read())
 
@@ -35,7 +36,7 @@ planner = "CBS" #choose which planner to use (currently only Independent is impl
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.005 #set at 0.1 as default
+visualization_speed = 0.1 #set at 0.1 as default
 
 # Don't change
 last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation
@@ -161,19 +162,7 @@ def parse_schedule(file_path, nodes_dict):
     spawn_times = df.t.unique()
     return aircraft_lst, spawn_times
 
-def find_closest_node(position, nodes_dict):
-    """
-    Find the closest node to a given (x, y) position.
-    """
-    min_distance = float('inf')
-    closest_node = None
-    for node_id, node_data in nodes_dict.items():
-        node_pos = node_data["xy_pos"]
-        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
-        if distance < min_distance:
-            min_distance = distance
-            closest_node = node_id
-    return closest_node
+
 
 def parse_tugs(file_path, nodes_dict):
     
@@ -265,35 +254,7 @@ def continuous_random_generation(t):
     return
 
 
-    # # Test if it's time to generate a new aircraft
-    
-    # random_generation_interval = random_generation_time // num_aircraft
-    # num_simulated_aircraft = len(aircraft_lst)
-    
-    # if t < random_generation_time and random_generation_interval * num_simulated_aircraft <= t:
-    #     occupied_gates = [ac.start for ac in aircraft_lst if ac.type == "D"]
-    #     occupied_rwy_arrs = [ac.start for ac in aircraft_lst if ac.type == "A"]
-    #     available_gates = [gate for gate in gates if gate not in occupied_gates]
-    #     available_rwy_arrs = [rwy for rwy in rwy_arrs if rwy not in occupied_rwy_arrs]
-    #     choice = random.choice(aircraft_type_choices)
-    #     spawn_time_l =  t
-    #     if choice == "A" and available_rwy_arrs:
-    #         start_node = random.choice(available_rwy_arrs)
-    #         goal_node = random.choice(gates)
-    #     elif choice == "D" and available_gates:
-    #         start_node = random.choice(available_gates)
-    #         goal_node = random.choice(rwy_deps)
-    #     else:
-    #         return
-        
-    #     ac = Aircraft(f'A{num_simulated_aircraft}', choice, start_node, goal_node, spawn_time_l, nodes_dict)
-    #     aircraft_lst.append(ac)
-    #     spawn_times.append(spawn_time_l)
-    #     print(f"Aircraft {ac.id} generated at time {t} with start node {start_node} and goal node {goal_node}")
-    # return
-    
-    
-    
+
 #%% RUN SIMULATION
 # =============================================================================
 # 0. Initialization
@@ -307,13 +268,14 @@ aircraft_type_choices = ["A", "D"]
 
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
+#Something wrong with random schedule declaration, had to declare it here
+random_schedule=True
 if random_schedule:
     aircraft_lst, spawn_times = [], [] #List which can contain aircraft agents
 else:
     aircraft_lst, spawn_times = parse_schedule("schedule.csv", nodes_dict)
     
 tugs_lst = parse_tugs("tugs.csv", nodes_dict) #List which can contain tug agents
-
 if visualization:
     map_properties = map_initialization(nodes_dict, edges_dict) #visualization properties
 
@@ -331,6 +293,7 @@ collisions=[]
 aircraft_queue = [] #queue of aircraft that are waiting for a tug
 available_tugs = [] #list of available tugs
 print("Simulation Started")
+
 while running:
     t= round(t,2)
     continuous_random_generation(t) if random_schedule else None #generate random aircraft if random_schedule is true
@@ -382,39 +345,17 @@ while running:
             ac_to_assign = aircraft_queue.pop(0)  # Get the first aircraft in the queue
             assign_tug_to_aircraft(ac_to_assign, available_tugs, t)
 
+        #Check if tugs where attached this turn
         new_tugging_started=False
-        
-        for tug in tugs_lst: ## Check if tug is available
-            if tug.status == "assigned":
-                tug.path_to_goal = [] #reset path to goal
-                tug.plan_free_path(heuristics, t)  # Plan free path for tug
-        
         for tug in tugs_lst:
-            if tug.status == "moving_free":
-                if tug.path_to_goal == []:
-                    tug.goal = tug.assigned_ac.start  # Set goal to the aircraft's start node
-                    tug.plan_free_path(heuristics, t)  # Plan free path for tug
-
             if tug.status == "moving_tugging":
                 if not tug.path_to_goal:
-                    current_location=find_closest_node(tug.position,nodes_dict)
-                    if current_location==tug.assigned_ac.start:
+                    current_location = find_closest_node(tug.position, nodes_dict)
+                    if current_location == tug.assigned_ac.start and t % 0.5 == 0:
                         # This tug just started tugging this timestep
                         print(f"Done at timestep {t}")
                         new_tugging_started = True
-            if 'moving' in tug.status:
-                tug.move(dt, t)
-            
-            if tug.status == "low_energy":
-                if charging_nodes:
-                    tug.assigned_ac = None #detach aircraft
-                    tug.path_to_goal = [] #reset path to goal
-                    tug.goal = random.choice(charging_nodes)
-                    
-                    tug.plan_free_path(heuristics, t)  # Plan free path for tug
-                    
-            if tug.status == "charging":
-                tug.charge(dt)
+        #Plan paths in case of new tugging
         if new_tugging_started or t in spawn_times:
             for tug in tugs_lst:
                 if tug.status == "moving_tugging":
@@ -428,7 +369,30 @@ while running:
                         max_static_block=100
                     )
                     break  # Only one call is needed since the method handles all tugging tugs
-
+        
+        for tug in tugs_lst: ## Check if tug is available
+            if tug.status == "assigned":
+                tug.path_to_goal = [] #reset path to goal
+                tug.plan_free_path(heuristics, t)  # Plan free path for tug
+        
+        for tug in tugs_lst:
+            if tug.status == "moving_free":
+                if tug.path_to_goal == []:
+                    tug.goal = tug.assigned_ac.start  # Set goal to the aircraft's start node
+                    tug.plan_free_path(heuristics, t)  # Plan free path for tug
+            if 'moving' in tug.status:
+                tug.move(dt, t)
+            current_location=find_closest_node(tug.position,nodes_dict)
+            if tug.status == "low_energy":
+                if charging_nodes:
+                    tug.assigned_ac = None #detach aircraft
+                    tug.path_to_goal = [] #reset path to goal
+                    tug.goal = tug.find_closest_charging_node(heuristics)
+                    
+                    tug.plan_free_path(heuristics, t)  # Plan free path for tug
+                    
+            if tug.status == "charging":
+                tug.charge(dt)
         for ac in active_aircrafts:
             if ac.status == "attached":
                 ac.move(tugs_mode=1,dt=dt,t=t)
@@ -440,17 +404,42 @@ while running:
 # =============================================================================
 #what data do you want to show?
 
+total_node_times_all_aircraft = {}
+total_dwell_times_all_aircraft = {}
+#Location of an agent at a given timestep can be determined with ac.closest_node.
+
 # Aircraft timing
 ac_results = []
 for ac in aircraft_lst:
+    #get rid of rounding errors
+    rounded_total_times = {node: round(time, 2) for node, time in ac.node_total_times.items()}
+    rounded_dwell_times = {node: round(time, 2) for node, time in ac.node_dwell_times.items()}
+
+    # Calculate total time for each node
+    for node, time in rounded_total_times.items():
+        total_node_times_all_aircraft[node] = total_node_times_all_aircraft.get(node, 0) + time
+
+    #Calculate total waiting time for each node
+    for node, time in rounded_dwell_times.items():
+        total_dwell_times_all_aircraft[node] = total_dwell_times_all_aircraft.get(node, 0) + time
+
     time_to_dest = ac.get_time_to_destination()
     if time_to_dest is not None:
         ac_results.append({
             "aircraft_id": ac.id,
             "start_time": ac.spawntime,
             "end_time": ac.end_time,
-            "time_to_destination": time_to_dest
+            "time_to_destination": time_to_dest,
+            "path": ac.visited_nodes,
+            "total_time_on_node": rounded_total_times,
+            "time_waiting_node": rounded_dwell_times,
+            "travelled distance": round(ac.total_distance)
         })
+
+
+print(total_node_times_all_aircraft) #Time spent on each node can be taken from here
+print(total_dwell_times_all_aircraft) #Time waited on each node can be taken from here
+
 pd.DataFrame(ac_results).to_csv("aircraft_time_to_destination_scenario_B.csv", index=False)
 print("Aircraft time-to-destination data saved to: aircraft_time_to_destination_scenario_B.csv")
 

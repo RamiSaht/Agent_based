@@ -2,6 +2,10 @@ import heapq
 from single_agent_planner import simple_single_agent_astar
 
 
+def euclidean_distance(pos1, pos2):
+    x1, y1 = pos1
+    x2, y2 = pos2
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 def detect_collision(path1, path2):
     t_1_start=path1[0][1]
@@ -65,7 +69,7 @@ def standard_splitting(collision):
     return constraints
 
 class CBSSolver:
-    def __init__(self, graph, nodes_dict, starts, goals,t,heuristics, static_obstacles=None):
+    def __init__(self, graph, nodes_dict, starts, goals,t,heuristics, static_obstacles=None,personal_obstacles=None):
         self.graph = graph  # This should be a DiGraph
         self.nodes_dict = nodes_dict
         self.starts = starts
@@ -77,6 +81,7 @@ class CBSSolver:
         self.heuristics = heuristics
         self.time = t
         self.static_obstacles = static_obstacles or []
+        self.personal_obstacles = personal_obstacles or [] #prevent return
     def push_node(self, node):
         heapq.heappush(self.open_list, (node['cost'], len(node['collisions']), self.num_of_generated, node))
         self.num_of_generated += 1
@@ -100,6 +105,17 @@ class CBSSolver:
                         'timestep': timestep
                     })
                 timestep = round(timestep + 0.5, 2)
+        for node_id, t_start, t_end, agent in self.personal_obstacles: #avoid return to previous node
+            timestep = round(t_start, 2)
+            while timestep <= round(t_end, 2):
+                root['constraints'].append({
+                    'positive': False,
+                    'agent': agent,
+                    'loc': [node_id],
+                    'timestep': timestep
+                })
+                timestep = round(timestep + 0.5, 2)
+
 
         for i in range(self.num_of_agents):
             path = simple_single_agent_astar(self.nodes_dict, self.starts[i], self.goals[i], self.heuristics, start_time,
@@ -140,7 +156,7 @@ class CBSSolver:
                 self.push_node(new_node)
         return root['paths']
 
-def run_CBS(graph, aircraft_lst, nodes_dict, edges_dict, heuristics, t, starts, goals):
+def run_CBS(graph, aircraft_lst, nodes_dict, edges_dict, heuristics, t, starts, goals,personal_obstacles=[]):
     """
     Run the CBS algorithm to compute conflict-free paths for aircraft.
     """
@@ -165,7 +181,7 @@ def run_CBS(graph, aircraft_lst, nodes_dict, edges_dict, heuristics, t, starts, 
         return
 
     # Initialize CBS solver
-    cbs_solver = CBSSolver(graph, nodes_dict, starts, goals, t, heuristics)
+    cbs_solver = CBSSolver(graph, nodes_dict, starts, goals, t, heuristics,personal_obstacles=personal_obstacles)
     # Compute paths using CBS
     try:
         paths = cbs_solver.find_solution()

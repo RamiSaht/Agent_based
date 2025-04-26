@@ -10,7 +10,7 @@ import time as timer
 import pygame as pg
 from single_agent_planner import calc_heuristics
 from visualization import map_initialization, map_running
-from Aircraft import Aircraft
+from Aircraft import Aircraft,find_closest_node
 from independent import run_independent_planner
 from prioritized import run_prioritized_planner
 from cbs import run_CBS
@@ -24,7 +24,7 @@ edges_file = "edges.xlsx" #xlsx file with for each edge: from  (node), to (node)
 
 #Parameters that can be changed:
 simulation_time = 100
-random_schedule = True #True if you want to generate a random schedule, False if you want to use the schedule.csv file
+random_schedule = False #True if you want to generate a random schedule, False if you want to use the schedule.csv file
 random_generation_time = 50 # time after which no random aircraft are generated anymore example 30 means all aircraft are generated in the first 30 seconds of the simulation
 num_aircraft = 8 #number of aircraft to be generated
 if os.path.exists("run_config.py"): ###### sensitivity analysis
@@ -34,7 +34,7 @@ planner = "CBS" #choose which planner to use (currently only Independent is impl
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
 visualization = True        #pygame visualization
-visualization_speed = 0.005 #set at 0.1 as default
+visualization_speed = 0.01 #set at 0.1 as default
 
 # Don't change
 last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation
@@ -160,20 +160,6 @@ def parse_schedule(file_path, nodes_dict):
     spawn_times = df.t.unique()
     return aircraft_lst, spawn_times
 
-def find_closest_node(position, nodes_dict):
-    """
-    Find the closest node to a given (x, y) position.
-    """
-    min_distance = float('inf')
-    closest_node = None
-    for node_id, node_data in nodes_dict.items():
-        node_pos = node_data["xy_pos"]
-        distance = (position[0] - node_pos[0]) ** 2 + (position[1] - node_pos[1]) ** 2
-        if distance < min_distance:
-            min_distance = distance
-            closest_node = node_id
-    return closest_node
-
 def parse_tugs(file_path, nodes_dict):
     
     df = pd.read_csv(file_path)
@@ -262,6 +248,12 @@ if visualization:
 # 1. While loop and visualization
 # =============================================================================
 
+#First create dictionaries for all data required for simulation
+time_per_node_all = {}
+idle_time_per_node_all = {}
+location_tracking = {}
+
+
 #Start of while loop    
 running=True
 escape_pressed = False
@@ -269,7 +261,6 @@ time_end = simulation_time if simulation_time else 999999
 dt = 0.1 #should be factor of 0.5 (0.5/dt should be integer)
 t= 0
 tugs_mode=0
-
 print("Simulation Started")
 while running:    
     t= round(t,2)
@@ -313,20 +304,27 @@ while running:
             starts = []
             goals = []
             active_aircrafts = []
+            personal_obstacles = []
             for ac in aircraft_lst:
                 if ac.status != "done":
                     if ac.status == "taxiing":
                         current_node = find_closest_node(ac.position, nodes_dict)
                         starts.append(current_node)
                         goals.append(ac.goal)
+                        agent_id = len(active_aircrafts)  # Index in active_aircrafts
                         active_aircrafts.append(ac)
+                        last_node=ac.last_surely_visited_node
+                        if last_node!=ac.start: #make sure only for nodes not representing starting points
+                            personal_obstacles.append((last_node,t,t+100,agent_id)) #make sure no weird returning behavior possible by ac
                     else:
                         if t == ac.spawntime:
                             starts.append(ac.start)
                             goals.append(ac.goal)
                             active_aircrafts.append(ac)
-                
-            run_CBS(graph, active_aircrafts, nodes_dict, edges_dict, heuristics, t, starts, goals)
+
+            run_CBS(graph, active_aircrafts, nodes_dict, edges_dict, heuristics, t, starts, goals,personal_obstacles)
+            # for ac in active_aircrafts:
+            #     print(ac.path_to_goal)
     #elif planner == -> you may introduce other planners here
     else:
         raise Exception("Planner:", planner, "is not defined.")
@@ -344,8 +342,23 @@ while running:
 # =============================================================================
 #what data do you want to show?
 
+total_node_times_all_aircraft = {}
+total_dwell_times_all_aircraft = {}
+#Location of an agent at a given timestep can be determined with ac.closest_node.
 results = []
 for ac in aircraft_lst:
+    #get rid of rounding errors
+    rounded_total_times = {node: round(time, 2) for node, time in ac.node_total_times.items()}
+    rounded_dwell_times = {node: round(time, 2) for node, time in ac.node_dwell_times.items()}
+
+    # Calculate total time for each node
+    for node, time in rounded_total_times.items():
+        total_node_times_all_aircraft[node] = total_node_times_all_aircraft.get(node, 0) + time
+
+    #Calculate total waiting time for each node
+    for node, time in rounded_dwell_times.items():
+        total_dwell_times_all_aircraft[node] = total_dwell_times_all_aircraft.get(node, 0) + time
+
     if ac.start_time is not None:  # Ensure aircraft was spawned
         entry = {
             "aircraft_id": ac.id,
@@ -354,10 +367,16 @@ for ac in aircraft_lst:
             "time_to_destination": ac.get_time_to_destination() if ac.get_time_to_destination() is not None else "FAILED",
             "moving_time": round(ac.moving_time, 2) if hasattr(ac, "moving_time") else "N/A",
             "idle_time": round(ac.idle_time, 2) if hasattr(ac, "idle_time") else "N/A",
-            "status": "planned" if ac.end_time is not None else "failed"
+            "status": "planned" if ac.end_time is not None else "failed",
+            "path": ac.visited_nodes,
+            "total_time_on_node": rounded_total_times,
+            "time_waiting_node": rounded_dwell_times,
+            "travelled distance": round(ac.total_distance)
         }
         results.append(entry)
 
+print(total_node_times_all_aircraft) #Time spent on each node can be taken from here
+print(total_dwell_times_all_aircraft) #Time waited on each node can be taken from here
 
 # Save to CSV
 results_df = pd.DataFrame(results)
