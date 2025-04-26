@@ -295,7 +295,7 @@ class Tug(object):
         for ac in aircraft_list:
             current_node = find_closest_node(ac.position, nodes_dict)
             current_time = round(current_time * 2) / 2
-            if ac.status == "requested" and current_node in chokepoints:
+            if (ac.status == "requested" or ac.status =="waiting") and current_node in chokepoints:
                 block_path = chokepoints[current_node]
                 for node in block_path:
                     static_blocks.append((node, current_time, current_time + max_static_block))
@@ -441,6 +441,20 @@ class Tug(object):
                 return float('inf')
             if self.assigned_ac.goal == ac.start:  # avoid conflict generation
                 return float('inf')
+            chokepoints = {
+                37: [11, 101, 37],
+                38: [12, 102, 38],
+                1: [4, 95, 1],
+                2: [5, 96, 2],
+                97: [29, 99, 97],
+                34: [30, 92, 34],
+                35: [31, 93, 35],
+                36: [32, 94, 36],
+                98: [33, 100, 98]
+            }  #Check if tug is too close to chokepoints in assignment
+            for point in chokepoints[ac.start]:
+                if point in [node for (node, _) in self.path_to_goal[:3]]: #Only check near future points to prevent blocking
+                    return float('inf')
 
             time_to_deliver_current = \
             self.calculate_free_path(self.from_to[0], self.assigned_ac.goal, heuristics, bid_time)[-1][1]
