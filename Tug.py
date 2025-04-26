@@ -102,6 +102,8 @@ class Tug(object):
         # Calculate the remaining distance to the next node
         remaining_distance = round(math.sqrt((xy_to[0] - self.position[0]) ** 2 + (xy_to[1] - self.position[1]) ** 2),2)
         #Make sure no divisions by 0 happen
+        if remaining_distance==0:
+            distance_moved=0
         if remaining_distance!=0:
             # Move towards the next node
             direction_x = (xy_to[0] - self.position[0]) / remaining_distance
