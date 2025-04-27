@@ -31,6 +31,9 @@ class Tug(object):
         """
         # Fixed parameters
         self.speed = 1  # how much tug moves per unit of t
+        self.tug_charge = 0 # how much the tug actually charges
+        self.consumed_energy = 0 # how much energy the tug consumes in simulation
+        self.tugging_energy = 0 # how much energy the tug consumes for tugging only
         self.charge_per_distance = 1  # how much percent is consumed per distance unit
         self.energy_threshold = 30  # energy threshold to consider bid (charging forced at 10% higher to make sure tugs aren't blocked off)
         self.charge_speed = 5  # how much percent is charged per unit of t
@@ -171,7 +174,9 @@ class Tug(object):
         if self.energy > 0:
             self.energy = round(self.energy - distance * self.charge_per_distance, 2)
             self.energy = max(0, self.energy)  # Ensure energy doesn't go below 0
-
+            self.consumed_energy += round(distance * self.charge_per_distance, 2) #store total consumed energy
+            if self.status == "moving_tugging":
+                self.tugging_energy += round(distance * self.charge_per_distance, 2)
         else:
             raise Exception(f"Tug {self.id} has no energy left.")
         pass
@@ -315,13 +320,13 @@ class Tug(object):
         # --- 4. Assign paths back to tugs and aircraft ---
         for tug, path in zip(moving_tugs, paths):
             tug.path_to_goal = path
-            print(tug.id, tug.path_to_goal)
+            # print(tug.id, tug.path_to_goal)
             tug.status = "moving_tugging"
             tug.attached_ac.path = path  # optional, for syncing visualization
             if len(path) > 1:
                 tug.from_to = [path[0][0], path[1][0]]
             tug.path_to_goal = tug.path_to_goal[1:]  # Make sure that we don't read the first transit node twice
-        print(static_blocks, personal_obstacles)
+        # print(static_blocks, personal_obstacles)
 
     def calculate_free_path(self, from_node, to_node, heuristics, time_start):
         """
@@ -390,8 +395,10 @@ class Tug(object):
         INPUT:
             - dt: time step
         """
+        self.tug_charge += round(min(100 - self.energy, self.charge_speed *dt),2) #compute total energy charge
         self.energy = min(self.energy + self.charge_speed * dt, 100)  # Ensure energy doesn't exceed 100%
         self.charging_time += dt  ##########
+
 
         if self.energy >= 100:
             if self.assigned_ac == None:
