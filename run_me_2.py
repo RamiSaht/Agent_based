@@ -36,8 +36,8 @@ if os.path.exists("run_config.py"):
 planner = "CBS" #choose which planner to use (currently only Independent is implemented)
 #Visualization (can also be changed)
 plot_graph = False    #show graph representation in NetworkX
-visualization = False        #pygame visualization
-visualization_speed = 0.001 #set at 0.1 as default
+visualization = False       #pygame visualization
+visualization_speed = 0.1 #set at 0.1 as default
 
 # Don't change
 last_aircraft_spawn = 0 #time of last aircraft spawn used in random generation
@@ -270,13 +270,14 @@ aircraft_type_choices = ["A", "D"]
 graph = create_graph(nodes_dict, edges_dict, plot_graph)
 heuristics = calc_heuristics(graph, nodes_dict)
 #Something wrong with random schedule declaration, had to declare it here
-# random_schedule=False
+random_schedule=False
 if random_schedule:
     aircraft_lst, spawn_times = [], []  # List to hold generated aircraft agents
 else:
     schedule_file = globals().get('schedule_file', 'schedule.csv')  # Default to 'schedule.csv' if not specified
     if not os.path.exists(schedule_file):  # If the file doesn't exist, fall back to 'schedule.csv'
         schedule_file = 'schedule.csv'
+    schedule_file = 'schedule.csv'
     aircraft_lst, spawn_times = parse_schedule(schedule_file, nodes_dict)  # Parse from the schedule file
 
 

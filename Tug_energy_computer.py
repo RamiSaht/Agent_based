@@ -72,9 +72,9 @@ for scenario_file in scenario_files:
     # Run the simulation
     subprocess.run(["python", "run_me_2.py"], check=True)
 
-    # Save/rename the tug output
-    base_output = "tug_energy_scenario_B.csv"  # adjust if necessary
-    output_file = f"{log_dir}/tug_data_run{run_id}_n{num_aircraft}.csv"
-    shutil.copy(base_output, output_file)
+    # # Save/rename the tug output
+    # base_output = "tug_energy_scenario_B.csv"  # adjust if necessary
+    # output_file = f"{log_dir}/tug_data_run{run_id}_n{num_aircraft}.csv"
+    # shutil.copy(base_output, output_file)
 
 print("\n All simulations complete. Tug data saved in:", log_dir)

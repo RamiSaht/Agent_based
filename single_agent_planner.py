@@ -101,62 +101,6 @@ def is_constrained(curr_loc, next_loc, next_time, constraint_table):
 
     return False  # No constraints violated
 
-# def simple_single_agent_astar(nodes_dict, from_node, goal_node, heuristics, time_start, constraints, agent):
-#     """
-#     Performs A* search for a single agent while respecting constraints.
-#     INPUT:
-#         - nodes_dict: Dictionary of nodes in the graph
-#         - from_node: Starting node ID
-#         - goal_node: Goal node ID
-#         - heuristics: Precomputed heuristic values
-#         - time_start: Starting timestep
-#         - constraints: List of constraints for the agent
-#         - agent: The agent ID
-#     RETURNS:
-#         - success: True if a path is found, False otherwise
-#         - path: The planned path as a list of (node_id, timestep) tuples
-#     """
-#     from_node_id = from_node
-#     goal_node_id = goal_node
-#     constraint_table = build_constraint_table(constraints, agent)
-#     open_list = []
-#     closed_list = {}
-#     h_value = heuristics[from_node_id][goal_node_id]
-#     root = {'loc': from_node_id, 'g_val': 0, 'h_val': h_value, 'parent': None, 'timestep': time_start}
-#     push_node(open_list, root)
-#     closed_list[(root['loc'], root['timestep'])] = root
-#
-#     while open_list:
-#         curr = pop_node(open_list)
-#         if curr['loc'] == goal_node_id:
-#             return True, get_path(curr)
-#         neighbors = nodes_dict[curr['loc']]["neighbors"]
-#         neighbors.add(curr['loc'])
-#         for neighbor in neighbors:
-#             next_timestep = curr['timestep'] + 0.5  # Assuming each move takes 0.5 timestep
-#             if is_constrained(curr['loc'], neighbor, next_timestep, constraint_table):
-#                 continue  # Skip this move if it's constrained
-#
-#             child = {
-#                 'loc': neighbor,
-#                 'g_val': curr['g_val'] + 1,  # Assuming each move has a cost of 1
-#                 'h_val': heuristics[neighbor][goal_node_id],
-#                 'parent': curr,
-#                 'timestep': next_timestep
-#             }
-#
-#             if (child['loc'], child['timestep']) in closed_list:
-#                 existing_node = closed_list[(child['loc'], child['timestep'])]
-#                 if compare_nodes(child, existing_node):
-#                     closed_list[(child['loc'], child['timestep'])] = child
-#                     push_node(open_list, child)
-#             else:
-#                 closed_list[(child['loc'], child['timestep'])] = child
-#                 push_node(open_list, child)
-#
-#     return False, []
-
-
 def simple_single_agent_astar(nodes_dict, from_node, goal_node, heuristics, time_start, constraints, agent):
     """
     Performs A* search for a single agent while respecting constraints.
